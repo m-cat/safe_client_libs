@@ -28,28 +28,85 @@ use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8, send_via_user_d
 use object_cache::{MDataInfoHandle, MDataPermissionSetHandle, MDataPermissionsHandle};
 use routing::XOR_NAME_LEN;
 use rust_sodium::crypto::sign;
+use safe_authenticator::test_utils as authenticator;
 use safe_core::ffi::arrays::XorNameArray;
+use safe_core::ipc::req::AuthReq;
+use std::collections::HashMap;
 use std::mem;
 use std::sync::mpsc;
-use test_utils::create_app;
+use test_utils::{create_app, gen_app_exchange_info};
 
 // Test changing the owner of mutable data.
-// TODO: fix and complete this test
-#[ignore]
 #[test]
-fn test_change_owner() {
-    let app = create_app();
+fn change_owner() {
+    // Create authenticator and app.
+    let auth = authenticator::create_account_and_login();
 
+    let app_info = gen_app_exchange_info();
+    let app_id = app_info.id.clone();
+
+    let auth_granted = unwrap!(authenticator::register_app(
+        &auth,
+        &AuthReq {
+            app: app_info,
+            app_container: false,
+            containers: HashMap::new(),
+        },
+    ));
+
+    let auth_key = auth_granted.app_keys.sign_pk;
+    let app = unwrap!(App::registered(app_id, auth_granted, |_network_event| ()));
+
+    // let owner_key = unwrap!(run(&app, move |client, _context| {
+    //     Ok(client.owner_key())
+    // }));
+
+    // Create a permissions set
+    let perms_set_h: MDataPermissionSetHandle =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_permission_set_new(&app, ud, cb))) };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+            mdata_permission_set_allow(&app, perms_set_h, MDataAction::Delete, ud, cb)
+        }));
+        unwrap!(call_0(|ud, cb| {
+            mdata_permission_set_allow(&app, perms_set_h, MDataAction::Insert, ud, cb)
+        }));
+        unwrap!(call_0(|ud, cb| {
+            mdata_permission_set_allow(&app, perms_set_h, MDataAction::Update, ud, cb)
+        }));
+        unwrap!(call_0(|ud, cb| {
+            mdata_permission_set_allow(&app, perms_set_h, MDataAction::ManagePermissions, ud, cb)
+        }));
+    };
+
+    // Create permissions for anyone
+    let perms_h: MDataPermissionsHandle =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
+
+    // Create a random key.
     let (random_key, _) = sign::gen_keypair();
 
     let random_key_h =
         unsafe { unwrap!(call_1(|ud, cb| sign_key_new(&app, &random_key.0, ud, cb))) };
 
-    // Try to create an empty public MD
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+            mdata_permissions_insert(&app, perms_h, random_key_h, perms_set_h, ud, cb)
+        }))
+    };
+
+    // Try to create an empty public MD.
     let md_info1_h: MDataInfoHandle = unsafe {
         unwrap!(call_1(
             |ud, cb| mdata_info_random_public(&app, 10000, ud, cb),
         ))
+    };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+            mdata_put(&app, md_info1_h, perms_h, ENTRIES_EMPTY, ud, cb)
+        }))
     };
 
     let result = unsafe {
@@ -65,11 +122,26 @@ fn test_change_owner() {
         _ => panic!("Changed permissions without permission"),
     };
 
-    // Try to create a new empty public MD
+    // Get key handle for auth key.
+    let auth_key_h = unsafe { unwrap!(call_1(|ud, cb| sign_key_new(&app, &auth_key.0, ud, cb))) };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+            mdata_permissions_insert(&app, perms_h, auth_key_h, perms_set_h, ud, cb)
+        }))
+    };
+
+    // Try to create a new empty public MD.
     let md_info2_h: MDataInfoHandle = unsafe {
         unwrap!(call_1(
             |ud, cb| mdata_info_random_public(&app, 10000, ud, cb),
         ))
+    };
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+            mdata_put(&app, md_info2_h, perms_h, ENTRIES_EMPTY, ud, cb)
+        }))
     };
 
     let result = unsafe {
