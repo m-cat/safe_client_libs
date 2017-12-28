@@ -47,7 +47,7 @@ fn create_test_file(client: &Client<()>) -> Box<NfsFuture<(MDataInfo, File)>> {
             file_helper::write(
                 c2.clone(),
                 File::new(Vec::new()),
-                Mode::Overwrite,
+                &Mode::Overwrite,
                 root.enc_key().cloned(),
             )
         })
@@ -93,7 +93,7 @@ fn file_fetch_public_md() {
                 file_helper::write(
                     c2.clone(),
                     File::new(Vec::new()),
-                    Mode::Overwrite,
+                    &Mode::Overwrite,
                     root.enc_key().cloned(),
                 )
             })
@@ -279,7 +279,7 @@ fn file_write_chunks() {
                 // Updating file - overwrite
                 let (dir, file) = unwrap!(res);
 
-                file_helper::write(c2, file, Mode::Overwrite, dir.enc_key().cloned())
+                file_helper::write(c2, file, &Mode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir))
             })
             .then(move |res| {
@@ -323,7 +323,7 @@ fn file_write_chunks() {
                 // Updating file - append
                 let (file, dir) = unwrap!(res);
 
-                file_helper::write(c3, file, Mode::Append, dir.enc_key().cloned())
+                file_helper::write(c3, file, &Mode::Append, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir))
             })
             .then(move |res| {
@@ -397,7 +397,7 @@ fn file_update_overwrite() {
                 let (dir, file) = unwrap!(res);
                 let creation_time = *file.created_time();
 
-                file_helper::write(c2, file, Mode::Overwrite, dir.enc_key().cloned())
+                file_helper::write(c2, file, &Mode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir, creation_time))
             })
             .then(move |res| {
@@ -450,7 +450,7 @@ fn file_update_append() {
                 let (dir, file) = unwrap!(res);
 
                 // Updating file - append
-                file_helper::write(c2, file, Mode::Append, dir.enc_key().cloned())
+                file_helper::write(c2, file, &Mode::Append, dir.enc_key().cloned())
                     .map(move |writer| (dir, writer))
             })
             .then(move |res| {
@@ -549,7 +549,7 @@ fn file_delete_then_add() {
             .then(move |res| {
                 let (dir, file) = unwrap!(res);
 
-                file_helper::write(c3, file, Mode::Overwrite, dir.enc_key().cloned())
+                file_helper::write(c3, file, &Mode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, dir))
             })
             .then(move |res| {
@@ -608,7 +608,7 @@ fn file_open_close() {
                 // The reader should get dropped implicitly
                 let (_reader, file, dir) = unwrap!(res);
                 // Open the file for writing
-                file_helper::write(c3, file.clone(), Mode::Overwrite, dir.enc_key().cloned())
+                file_helper::write(c3, file.clone(), &Mode::Overwrite, dir.enc_key().cloned())
                     .map(move |writer| (writer, file, dir))
             })
             .then(move |res| {
@@ -616,7 +616,7 @@ fn file_open_close() {
                 // Close the file
                 let _ = writer.close();
                 // Open the file for appending
-                file_helper::write(c4, file.clone(), Mode::Append, dir.enc_key().cloned())
+                file_helper::write(c4, file.clone(), &Mode::Append, dir.enc_key().cloned())
                     .map(move |writer| (writer, file, dir))
             })
             .then(move |res| {
@@ -657,7 +657,7 @@ fn encryption() {
         file_helper::write(
             client.clone(),
             File::new(Vec::new()),
-            Mode::Overwrite,
+            &Mode::Overwrite,
             Some(key.clone()),
         ).then(move |res| {
             let writer = unwrap!(res);

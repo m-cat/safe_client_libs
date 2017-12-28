@@ -91,7 +91,7 @@ pub mod test_utils;
 pub use self::errors::*;
 
 use self::object_cache::ObjectCache;
-#[cfg(feature = "testing")]
+#[cfg(any(test, feature = "testing"))]
 pub use ffi::test_utils::{test_create_app, test_create_app_with_access};
 use futures::{Future, future};
 use futures::stream::Stream;

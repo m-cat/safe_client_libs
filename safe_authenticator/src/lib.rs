@@ -278,7 +278,7 @@ impl Authenticator {
                             unwrap!(tx.send(Ok(core_tx2)));
                         })
                         .map_err(move |e| {
-                            unwrap!(tx2.send(Err((Some(core_tx3), AuthError::from(e)))));
+                            unwrap!(tx2.send(Err((Some(core_tx3), e))));
                         })
                         .into_box()
                         .into()

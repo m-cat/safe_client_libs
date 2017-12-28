@@ -44,15 +44,15 @@ pub struct Writer<T> {
 impl<T: 'static> Writer<T> {
     /// Create new instance of Writer
     pub fn new(
-        client: Client<T>,
+        client: &Client<T>,
         storage: SelfEncryptionStorage<T>,
         file: File,
-        mode: Mode,
+        mode: &Mode,
         encryption_key: Option<shared_secretbox::Key>,
     ) -> Box<NfsFuture<Writer<T>>> {
-        let fut = match mode {
+        let fut = match *mode {
             Mode::Append => {
-                data_map::get(&client, file.data_map_name(), encryption_key.clone())
+                data_map::get(client, file.data_map_name(), encryption_key.clone())
                     .map(Some)
                     .into_box()
             }

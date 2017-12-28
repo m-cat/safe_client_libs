@@ -40,8 +40,8 @@ pub type RequestHookFn = FnMut(&Request) -> Option<Response> + 'static;
 /// Function that is used to modify responses before they are sent.
 pub type ResponseHookFn = FnMut(Response) -> Response + 'static;
 
-const CONNECT_THREAD_NAME: &'static str = "Mock routing connect";
-const DELAY_THREAD_NAME: &'static str = "Mock routing delay";
+const CONNECT_THREAD_NAME: &str = "Mock routing connect";
+const DELAY_THREAD_NAME: &str = "Mock routing delay";
 
 const DEFAULT_DELAY_MS: u64 = 0;
 const CONNECT_DELAY_MS: u64 = DEFAULT_DELAY_MS;
@@ -104,7 +104,7 @@ impl Routing {
     pub fn new(
         sender: Sender<Event>,
         id: Option<FullId>,
-        _bootstrap_config: Option<BootstrapConfig>,
+        _bootstrap_config: &Option<BootstrapConfig>,
         _msg_expiry_dur: Duration,
     ) -> Result<Self, RoutingError> {
         let _ = ::rust_sodium::init();
@@ -133,8 +133,8 @@ impl Routing {
     }
 
     /// Sets the vault for this routing instance.
-    pub fn set_vault(&mut self, vault: Arc<Mutex<Vault>>) {
-        self.vault = vault.clone();
+    pub fn set_vault(&mut self, vault: &Arc<Mutex<Vault>>) {
+        self.vault = Arc::clone(vault);
     }
 
     /// Gets MAID account information.
@@ -456,7 +456,7 @@ impl Routing {
         dst: Authority<XorName>,
         name: XorName,
         tag: u64,
-        key: Vec<u8>,
+        key: &[u8],
         msg_id: MessageId,
     ) -> Result<(), InterfaceError> {
         self.read_mdata(dst,
@@ -465,12 +465,12 @@ impl Routing {
                         Request::GetMDataValue {
                             name,
                             tag,
-                            key: key.clone(),
+                            key: key.to_vec(),
                             msg_id,
                         },
                         "get_mdata_value",
                         GET_MDATA_ENTRIES_DELAY_MS,
-                        |data| data.get(&key).cloned().ok_or(ClientError::NoSuchEntry),
+                        |data| data.get(key).cloned().ok_or(ClientError::NoSuchEntry),
                         |res| Response::GetMDataValue { res, msg_id })
     }
 

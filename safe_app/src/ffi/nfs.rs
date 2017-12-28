@@ -192,7 +192,7 @@ pub unsafe extern "C" fn file_open(
                 let fut = file_helper::write(
                     client.clone(),
                     file,
-                    writer_mode,
+                    &writer_mode,
                     parent_info.enc_key().cloned(),
                 ).map(Some);
                 Either::A(fut)

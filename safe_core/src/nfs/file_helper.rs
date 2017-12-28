@@ -177,7 +177,7 @@ where
 pub fn write<T>(
     client: Client<T>,
     file: File,
-    mode: Mode,
+    mode: &Mode,
     encryption_key: Option<shared_secretbox::Key>,
 ) -> Box<NfsFuture<Writer<T>>>
 where
@@ -186,7 +186,7 @@ where
     trace!("Creating a writer for a file");
 
     Writer::new(
-        client.clone(),
+        &client.clone(),
         SelfEncryptionStorage::new(client),
         file,
         mode,

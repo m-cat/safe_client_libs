@@ -286,7 +286,7 @@ fn mutable_data_basics() {
         nae_mgr,
         name,
         tag,
-        key0.to_vec(),
+        &key0.to_vec(),
         msg_id,
     ));
     let value = expect_success!(routing_rx, msg_id, Response::GetMDataValue);
@@ -300,7 +300,7 @@ fn mutable_data_basics() {
         nae_mgr,
         name,
         tag,
-        key2.to_vec(),
+        &key2.to_vec(),
         msg_id,
     ));
     expect_failure!(
@@ -1365,7 +1365,7 @@ fn setup() -> (Routing, Receiver<Event>, FullId) {
 fn setup_with_config(config: Config) -> (Routing, Receiver<Event>, FullId) {
     let (mut routing, routing_rx, full_id) = setup_impl();
 
-    routing.set_vault(Arc::new(Mutex::new(Vault::new(config))));
+    routing.set_vault(&Arc::new(Mutex::new(Vault::new(config))));
 
     (routing, routing_rx, full_id)
 }
@@ -1376,7 +1376,7 @@ fn setup_impl() -> (Routing, Receiver<Event>, FullId) {
     let routing = unwrap!(Routing::new(
             routing_tx,
             Some(full_id.clone()),
-            None,
+            &None,
             Duration::new(0, 0),
     ));
 

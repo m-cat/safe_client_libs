@@ -273,7 +273,7 @@ impl AccessContInfo {
     }
 
     /// Creates an `AccessContInfo` from a given `MDataInfo`
-    pub fn from_mdata_info(md: MDataInfo) -> Result<AccessContInfo, IpcError> {
+    pub fn from_mdata_info(md: &MDataInfo) -> Result<AccessContInfo, IpcError> {
         if let Some((_, nonce)) = md.enc_info {
             Ok(AccessContInfo {
                 id: md.name,
