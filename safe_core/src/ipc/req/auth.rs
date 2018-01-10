@@ -20,20 +20,21 @@ use ffi::ipc::req as ffi;
 use ffi_utils::{ReprC, StringError, vec_into_raw_parts};
 use ipc::errors::IpcError;
 use std::collections::HashMap;
+use std::hash::BuildHasher;
 
 /// Represents an authorisation request
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct AuthReq {
+pub struct AuthReq<S: BuildHasher> {
     /// The application identifier for this request
     pub app: AppExchangeInfo,
     /// `true` if the app wants dedicated container for itself. `false`
     /// otherwise.
     pub app_container: bool,
     /// The list of containers it wishes to access (and desired permissions).
-    pub containers: HashMap<String, ContainerPermissions>,
+    pub containers: HashMap<String, ContainerPermissions, S>,
 }
 
-impl AuthReq {
+impl<S: BuildHasher> AuthReq<S> {
     /// Consumes the object and returns the FFI counterpart.
     ///
     /// You're now responsible for freeing the subobjects memory once you're
@@ -58,7 +59,7 @@ impl AuthReq {
     }
 }
 
-impl ReprC for AuthReq {
+impl<S: BuildHasher> ReprC for AuthReq<S> {
     type C = *const ffi::AuthReq;
     type Error = IpcError;
 

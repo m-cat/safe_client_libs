@@ -15,6 +15,7 @@
 // Please review the Licences for the specific language governing permissions and limitations
 // relating to use of the SAFE Network Software.
 
+use std::hash::BuildHasher;
 use super::{App, AppContext};
 use super::errors::AppError;
 use futures::{Future, IntoFuture};
@@ -95,9 +96,9 @@ pub fn create_app_by_req(auth_req: &NativeAuthReq) -> App {
 }
 
 /// Create an app authorisation request with optional app id and access info.
-pub fn create_auth_req(
+pub fn create_auth_req<S: BuildHasher + Default>(
     app_id: Option<String>,
-    access_info: Option<HashMap<String, ContainerPermissions>>,
+    access_info: Option<HashMap<String, ContainerPermissions, S>>,
 ) -> NativeAuthReq {
     let mut app_info = gen_app_exchange_info();
     if let Some(app_id) = app_id {
@@ -106,7 +107,7 @@ pub fn create_auth_req(
 
     let (app_container, containers) = match access_info {
         Some(access_info) => (true, access_info),
-        None => (false, HashMap::new()),
+        None => (false, HashMap::default()),
     };
 
     NativeAuthReq {
@@ -122,8 +123,8 @@ pub fn create_random_auth_req() -> NativeAuthReq {
 }
 
 /// Create registered app with a random id and grant it access to the specified containers.
-pub fn create_auth_req_with_access(
-    access_info: HashMap<String, ContainerPermissions>,
+pub fn create_auth_req_with_access<S: BuildHasher + Default>(
+    access_info: HashMap<String, ContainerPermissions, S>,
 ) -> NativeAuthReq {
     create_auth_req(None, Some(access_info))
 }

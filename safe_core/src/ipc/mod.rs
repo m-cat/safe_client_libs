@@ -27,22 +27,25 @@ pub use self::req::{AppExchangeInfo, AuthReq, ContainersReq, IpcReq, Permission,
                     ShareMDataReq};
 pub use self::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, IpcResp,
                      access_container_enc_key};
+
+use serde::Serialize;
 use ffi_utils::{base64_decode, base64_encode};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use rand::{self, Rng};
 pub use routing::BootstrapConfig;
 use std::u32;
+use std::hash::BuildHasher;
 
 /// IPC message
 #[cfg_attr(feature = "cargo-clippy", allow(large_enum_variant))]
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub enum IpcMsg {
+pub enum IpcMsg<S: BuildHasher> {
     /// Request
     Req {
         /// Request ID
         req_id: u32,
         /// Request
-        req: IpcReq,
+        req: IpcReq<S>,
     },
     /// Response
     Resp {
@@ -61,12 +64,12 @@ pub enum IpcMsg {
 }
 
 /// Encode `IpcMsg` into string, using base64 encoding.
-pub fn encode_msg(msg: &IpcMsg) -> Result<String, IpcError> {
+pub fn encode_msg<S: BuildHasher + Serialize>(msg: &IpcMsg<S>) -> Result<String, IpcError> {
     Ok(base64_encode(&serialise(msg)?))
 }
 
 /// Decode `IpcMsg` encoded with base64 encoding.
-pub fn decode_msg(encoded: &str) -> Result<IpcMsg, IpcError> {
+pub fn decode_msg<S: BuildHasher + Serialize>(encoded: &str) -> Result<IpcMsg<S>, IpcError> {
     Ok(deserialise(&base64_decode(encoded)?)?)
 }
 

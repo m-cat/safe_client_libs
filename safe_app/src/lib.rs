@@ -34,8 +34,8 @@ maidsafe_logo.png",
 #![allow(box_pointers, missing_copy_implementations, missing_debug_implementations,
          variant_size_differences)]
 #![cfg_attr(feature = "cargo-clippy",
-           deny(clippy, unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used))]
-#![cfg_attr(feature = "cargo-clippy", allow(use_debug, too_many_arguments))]
+           deny(unicode_not_nfc, wrong_pub_self_convention, option_unwrap_used))]
+#![cfg_attr(feature="cargo-clippy", allow(too_many_arguments, use_debug))]
 
 extern crate config_file_handler;
 #[macro_use]

@@ -146,8 +146,7 @@ pub fn register_app(
 pub fn register_rand_app(
     authenticator: &Authenticator,
     app_container: bool,
-    containers_req: HashMap<String, ContainerPermissions,
-                            ::std::collections::hash_map::RandomState>,
+    containers_req: HashMap<String, ContainerPermissions>,
 ) -> Result<(String, AuthGranted), AuthError> {
     let auth_req = AuthReq {
         app: rand_app(),
@@ -296,7 +295,7 @@ pub fn compare_access_container_entries(
     authenticator: &Authenticator,
     app_sign_pk: sign::PublicKey,
     mut access_container: AccessContainerEntry,
-    expected: HashMap<String, ContainerPermissions, ::std::collections::hash_map::RandomState>,
+    expected: HashMap<String, ContainerPermissions>,
 ) {
     let results = run(authenticator, move |client| {
         let mut reqs = Vec::new();

@@ -24,6 +24,7 @@ mod share_mdata;
 pub use self::auth::AuthReq;
 pub use self::containers::ContainersReq;
 pub use self::share_mdata::{ShareMData, ShareMDataReq};
+
 use ffi::ipc::req::{AppExchangeInfo as FfiAppExchangeInfo,
                     ContainerPermissions as FfiContainerPermissions,
                     PermissionSet as FfiPermissionSet};
@@ -33,6 +34,7 @@ use routing::{Action, PermissionSet};
 use std::{ptr, slice};
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::{CString, NulError};
+use std::hash::BuildHasher;
 
 /// Permission enum - use for internal storage only
 #[repr(C)]
@@ -57,9 +59,9 @@ pub type ContainerPermissions = BTreeSet<Permission>;
 /// IPC request.
 // TODO: `TransOwnership` variant
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-pub enum IpcReq {
+pub enum IpcReq<S: BuildHasher> {
     /// Authentication request.
-    Auth(AuthReq),
+    Auth(AuthReq<S>),
     /// Containers request.
     Containers(ContainersReq),
     /// Unregistered client authenticator request.
@@ -173,10 +175,10 @@ where
 /// After calling this function, the raw pointer is owned by the resulting
 /// object.
 #[allow(unsafe_code)]
-pub unsafe fn containers_from_repr_c(
+pub unsafe fn containers_from_repr_c<S: BuildHasher>(
     raw: *const FfiContainerPermissions,
     len: usize,
-) -> Result<HashMap<String, ContainerPermissions>, IpcError> {
+) -> Result<HashMap<String, ContainerPermissions, S>, IpcError> {
     slice::from_raw_parts(raw, len)
         .iter()
         .map(|raw| {
