@@ -47,13 +47,15 @@ In order to view the output of trace calls you will need to initialize logging a
 unwrap!(maidsafe_utilities::log::init(true));
 ```
 
-Then you will need to set the `RUST_LOG` environment variable to the desired logging level for the desired modules or crates. To view trace calls for `safe_authenticator`, for example, you may do this:
+Then you will need to set the `RUST_LOG` environment variable to the desired logging level for the desired modules or crates. To view trace calls for `safe_core` and `safe_authenticator`, for example, you may do this:
 
 ```shell
-export RUST_LOG=safe_authenticator=trace
+export RUST_LOG=safe_core=trace,safe_authenticator=trace
 ```
 
 You could also set `RUST_LOG=trace` which will output *all* trace logs, but this may produce far more data than desired. For more information please see the documentation for the `log` module in our crate [maidsafe_utilities](https://docs.rs/maidsafe_utilities).
+
+**Note:** make sure to compile in release mode using the `--release` flag. Trace logs may appear out of order otherwise (and some may not appear at all), which can be misleading when debugging.
 
 ## License
 

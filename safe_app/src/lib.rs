@@ -63,7 +63,7 @@ pub use safe_core::*;
 
 pub mod ffi;
 
-// Required for moz_cheddar to work.
+// Required by the binding generator.
 
 pub use ffi::*;
 pub use ffi::access_container::*;

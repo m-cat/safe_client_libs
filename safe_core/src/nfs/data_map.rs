@@ -19,13 +19,14 @@ use self_encryption::DataMap;
 use utils::FutureExt;
 
 // Get `DataMap` from the network.
-// If the `DataMap` is encrypted, an `encryption_key` must be passed in to decrypt it.
+// If the `DataMap` is encrypted, a `decryption_key` must be passed in to decrypt it.
 pub fn get<T: 'static>(
     client: &Client<T>,
     name: &XorName,
-    encryption_key: Option<shared_secretbox::Key>,
+    decryption_key: Option<shared_secretbox::Key>,
 ) -> Box<NfsFuture<DataMap>> {
-    immutable_data::get_value(client, name, encryption_key)
+    trace!("Getting data map from network with name {:?}", name.0);
+    immutable_data::get_value(client, name, decryption_key)
         .map_err(From::from)
         .and_then(move |content| deserialise(&content).map_err(From::from))
         .into_box()

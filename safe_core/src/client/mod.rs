@@ -572,7 +572,7 @@ impl<T: 'static> Client<T> {
     /// then it will be immediately be returned without making an actual network
     /// request.
     pub fn get_idata(&self, name: XorName) -> Box<CoreFuture<ImmutableData>> {
-        trace!("GetIData for {:?}", name);
+        trace!("GetIData for {:?}", name.0);
 
         if let Some(data) = self.inner.borrow_mut().cache.get_mut(&name) {
             trace!("ImmutableData found in cache.");

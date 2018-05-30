@@ -25,30 +25,6 @@ use std::os::raw::c_void;
 #[no_mangle]
 pub static USER_ANYONE: u64 = NULL_OBJECT_HANDLE;
 
-/// Permission actions.
-#[repr(C)]
-pub enum MDataAction {
-    /// Permission to insert new entries.
-    Insert,
-    /// Permission to update existing entries.
-    Update,
-    /// Permission to delete existing entries.
-    Delete,
-    /// Permission to manage permissions.
-    ManagePermissions,
-}
-
-impl Into<Action> for MDataAction {
-    fn into(self) -> Action {
-        match self {
-            MDataAction::Insert => Action::Insert,
-            MDataAction::Update => Action::Update,
-            MDataAction::Delete => Action::Delete,
-            MDataAction::ManagePermissions => Action::ManagePermissions,
-        }
-    }
-}
-
 /// FFI object representing a (User, Permission Set) pair.
 #[repr(C)]
 pub struct UserPermissionSet {

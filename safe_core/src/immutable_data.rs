@@ -69,24 +69,32 @@ pub fn extract_value<T: 'static>(
     unpack(client.clone(), data)
         .and_then(move |value| {
             let data_map = if let Some(key) = decryption_key {
+                trace!("Decrypting and deserializing immutable data value");
                 let plain_text = utils::symmetric_decrypt(&value, &key)?;
                 deserialise(&plain_text)?
             } else {
+                trace!("Deserializing immutable data value {:?}", value);
                 deserialise(&value)?
             };
 
+            trace!("Creating new self encryptor, data map: {:?}", data_map);
             let storage = SelfEncryptionStorage::new(client);
             Ok(SelfEncryptor::new(storage, data_map)?)
         })
         .and_then(|self_encryptor| {
             let length = self_encryptor.len();
+            trace!("Reading {} bytes from self encryptor", length);
             self_encryptor.read(0, length).map_err(From::from)
+        })
+        .map(|content| {
+            trace!("Finished reading from self encryptor: {:?}", content);
+            content
         })
         .into_box()
 }
 
 /// Get immutable data from the network and extract its value, decrypting it in
-/// the process (if keys provided).  This is a convenience function combining
+/// the process (if keys provided). This is a convenience function combining
 /// `get` and `extract_value` into one function.
 pub fn get_value<T: 'static>(
     client: &Client<T>,
@@ -94,9 +102,17 @@ pub fn get_value<T: 'static>(
     decryption_key: Option<shared_secretbox::Key>,
 ) -> Box<CoreFuture<Vec<u8>>> {
     let client2 = client.clone();
+    trace!("Getting immutable data for name {:?}, decryption key {:?}", name.0, decryption_key);
     client
         .get_idata(*name)
-        .and_then(move |data| extract_value(&client2, &data, decryption_key))
+        .and_then(move |data| {
+            trace!("Extracting value from immutable data {:?}", data);
+            extract_value(&client2, &data, decryption_key)
+        })
+        .map(|content| {
+            trace!("Extracted value {:?}", content);
+            content
+        })
         .into_box()
 }
 
@@ -124,9 +140,11 @@ fn pack<T: 'static>(client: Client<T>, value: Vec<u8>) -> Box<CoreFuture<Immutab
 }
 
 fn unpack<T: 'static>(client: Client<T>, data: &ImmutableData) -> Box<CoreFuture<Vec<u8>>> {
+    trace!("Unpacking immutable data value {:?}", data.value());
     match fry!(deserialise(data.value())) {
         DataTypeEncoding::Serialised(value) => ok!(value),
         DataTypeEncoding::DataMap(data_map) => {
+            trace!("Found data map {:?}", data_map);
             let storage = SelfEncryptionStorage::new(client.clone());
             let self_encryptor = fry!(SelfEncryptor::new(storage, data_map));
             let length = self_encryptor.len();

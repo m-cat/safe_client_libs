@@ -9,20 +9,26 @@
 
 use App;
 use errors::AppError;
+use ffi::immutable_data::{idata_fetch_self_encryptor, idata_read_from_self_encryptor};
+use ffi::mdata_info::mdata_info_random_public;
+use ffi::mutable_data::{ENTRIES_EMPTY, mdata_put};
+use ffi::mutable_data::permissions::{mdata_permissions_new, mdata_permissions_insert, USER_ANYONE};
 use ffi::nfs::*;
-use ffi::object_cache::FileContextHandle;
+use ffi::object_cache::{FileContextHandle, MDataPermissionsHandle};
 use ffi_utils::ErrorCode;
 use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
 use futures::Future;
+use routing::{Action, PermissionSet};
 use safe_core::ffi::MDataInfo;
 use safe_core::ffi::nfs::File;
 use safe_core::ipc::Permission;
+use safe_core::ipc::req::permission_set_into_repr_c;
 use safe_core::nfs::File as NativeFile;
 use safe_core::nfs::NfsError;
 use std;
 use std::collections::HashMap;
 use std::ffi::CString;
-use test_utils::{create_app_by_req, create_auth_req_with_access, run};
+use test_utils::{create_app, create_app_by_req, create_auth_req_with_access, run};
 
 fn setup() -> (App, MDataInfo) {
     let mut container_permissions = HashMap::new();
@@ -432,6 +438,148 @@ fn fetch_file() {
         }))
     };
     assert_eq!(retrieved_content, content);
+}
+
+// Test fetching files from a public MDusing immutable data.
+#[test]
+fn immutable_fetch_file() {
+    use maidsafe_utilities;
+    use rand;
+    use safe_core::MDataInfo;
+
+    unwrap!(maidsafe_utilities::log::init(true));
+
+    let mut container_permissions = HashMap::new();
+    let _ = container_permissions.insert(
+        "_videos".to_string(),
+        btree_set![
+            Permission::Read,
+            Permission::Insert,
+            Permission::Update,
+            Permission::Delete,
+        ],
+    );
+
+    let app = create_app();
+
+    // Create a permissions set
+    let perm_set = PermissionSet::new()
+        .allow(Action::Insert)
+        .allow(Action::Update)
+        .allow(Action::Delete)
+        .allow(Action::ManagePermissions);
+    let perms_h: MDataPermissionsHandle =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_permissions_new(&app, ud, cb))) };
+
+    let ffi_perm_set = permission_set_into_repr_c(perm_set);
+    assert!(ffi_perm_set.insert);
+
+    // Create permissions for anyone
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+            mdata_permissions_insert(&app, perms_h, USER_ANYONE, &ffi_perm_set, ud, cb)
+        }));
+    }
+
+    // Create public MD with permissions
+    let type_tag: u64 = rand::random();
+    let container_info: MDataInfo =
+        unsafe { unwrap!(call_1(|ud, cb| mdata_info_random_public(type_tag, ud, cb))) };
+    let ffi_container_info = container_info.into_repr_c();
+
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+            mdata_put(&app, &ffi_container_info, perms_h, ENTRIES_EMPTY, ud, cb)
+        }))
+    };
+
+    // Create non-empty file.
+    let file = NativeFile::new(Vec::new());
+    let ffi_file = file.into_repr_c();
+
+    let file_name1 = "";
+    let ffi_file_name1 = unwrap!(CString::new(file_name1));
+
+    let content = b"hello world";
+    let len = content.len();
+
+    let write_h = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            file_open(
+                &app,
+                &ffi_container_info,
+                &ffi_file,
+                OPEN_MODE_OVERWRITE,
+                ud,
+                cb,
+            )
+        }))
+    };
+
+    let written_file: NativeFile = unsafe {
+        unwrap!(call_0(|ud, cb| {
+            file_write(&app, write_h, content.as_ptr(), len, ud, cb)
+        }));
+        unwrap!(call_1(|ud, cb| file_close(&app, write_h, ud, cb)))
+    };
+
+    // Insert file into container.
+    unsafe {
+        unwrap!(call_0(|ud, cb| {
+            dir_insert_file(
+                &app,
+                &ffi_container_info,
+                ffi_file_name1.as_ptr(),
+                &written_file.into_repr_c(),
+                ud,
+                cb,
+            )
+        }))
+    }
+
+    // Fetch it back.
+    let (file, _version): (NativeFile, u64) = {
+        unsafe {
+            unwrap!(call_2(|ud, cb| {
+                dir_fetch_file(&app, &ffi_container_info, ffi_file_name1.as_ptr(), ud, cb)
+            }))
+        }
+    };
+    let name = file.data_map_name().0;
+
+    // Read the file content normally.
+    let read_write_h = unsafe {
+        unwrap!(call_1(|ud, cb| {
+            file_open(
+                &app,
+                &ffi_container_info,
+                &file.into_repr_c(),
+                OPEN_MODE_READ | OPEN_MODE_APPEND,
+                ud,
+                cb,
+            )
+        }))
+    };
+
+    let retrieved_content = unsafe {
+        unwrap!(call_vec_u8(|ud, cb| {
+            file_read(&app, read_write_h, 0, FILE_READ_TO_END, ud, cb)
+        }))
+    };
+    assert_eq!(retrieved_content, content);
+
+    // Read the file content using idata.
+    let se_h = unsafe {
+        unwrap!(call_1(
+            |ud, cb| idata_fetch_self_encryptor(&app, &name, ud, cb),
+        ))
+    };
+    let data = unsafe {
+        unwrap!(call_vec_u8(|ud, cb| {
+            idata_read_from_self_encryptor(&app, se_h, 0, len as u64, ud, cb)
+        }))
+    };
+    assert_eq!(data, content);
 }
 
 // Test that NFS functions still work after deleting and updating file contents.

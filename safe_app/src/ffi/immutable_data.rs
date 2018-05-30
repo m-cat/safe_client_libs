@@ -183,19 +183,24 @@ pub unsafe extern "C" fn idata_fetch_self_encryptor(
             let context2 = context.clone();
             let context3 = context.clone();
 
+            trace!("Getting value from immutable data with name {:?}", name);
             immutable_data::get_value(client, &name, None)
                 .map_err(AppError::from)
                 .and_then(move |enc_data_map| {
+                    trace!("Decrypting encrypted data map {:?}", enc_data_map);
                     let ser_data_map = CipherOpt::decrypt(&enc_data_map, &context2, &client2)?;
+                    trace!("Deserializing serialised data map {:?}", ser_data_map);
                     let data_map = deserialise(&ser_data_map)?;
 
                     Ok(data_map)
                 })
                 .and_then(move |data_map| {
+                    trace!("Creating self encryptor with data map {:?}", data_map);
                     let se_storage = SelfEncryptionStorage::new(client3);
                     SelfEncryptor::new(se_storage, data_map).map_err(AppError::from)
                 })
                 .map(move |se_reader| {
+                    trace!("Inserting SE reader");
                     let handle = context3.object_cache().insert_se_reader(se_reader);
                     o_cb(user_data.0, FFI_RESULT_OK, handle);
                 })
