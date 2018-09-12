@@ -21,8 +21,8 @@ use safe_core::client;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
 use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
 use safe_core::{app_container_name, recovery, Client, CoreError, FutureExt, MDataInfo};
+use safe_crypto;
 use std::collections::HashMap;
-use tiny_keccak::sha3_256;
 
 /// Represents current app state
 #[derive(Debug, Eq, PartialEq)]
@@ -40,7 +40,7 @@ pub enum AppState {
 /// an entry in the config but not in the access container, and `NotAuthenticated`
 /// if it's not registered anywhere).
 pub fn app_state(client: &AuthClient, apps: &Apps, app_id: &str) -> Box<AuthFuture<AppState>> {
-    let app_id_hash = sha3_256(app_id.as_bytes());
+    let app_id_hash = safe_crypto::hash(app_id.as_bytes());
 
     if let Some(app) = apps.get(&app_id_hash) {
         let app_keys = app.keys.clone();
@@ -166,7 +166,7 @@ pub fn authenticate(client: &AuthClient, auth_req: AuthReq) -> Box<AuthFuture<Au
                         .into_box()
                 }
                 AppState::Authenticated | AppState::Revoked => {
-                    let app_entry_name = sha3_256(app_id.as_bytes());
+                    let app_entry_name = safe_crypto::hash(app_id.as_bytes());
                     if let Some(app) = apps.remove(&app_entry_name) {
                         ok!((app, app_state, app_id))
                     } else {

@@ -14,9 +14,9 @@ use futures::Future;
 use maidsafe_utilities::thread;
 use rand::{OsRng, Rng};
 use routing::{Action, ClientError, EntryAction, MutableData, PermissionSet, User, Value, XorName};
-use rust_sodium::crypto::sign;
 use safe_core::utils::test_utils::random_client;
 use safe_core::{utils, Client, CoreError, FutureExt, DIR_TAG};
+use safe_crypto;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::CString;
 use std::sync::mpsc;
@@ -523,7 +523,7 @@ fn permissions_and_version() {
     run(&app, |client: &AppClient, _app_context| {
         let mut rng = unwrap!(OsRng::new());
         let sign_pk = unwrap!(client.public_signing_key());
-        let (random_key, _) = sign::gen_keypair();
+        let (random_key, _) = safe_crypto::gen_sign_keypair();
 
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(
@@ -643,8 +643,8 @@ fn permissions_crud() {
     run(&app, |client: &AppClient, _app_context| {
         let mut rng = unwrap!(OsRng::new());
         let sign_pk = unwrap!(client.public_signing_key());
-        let (random_key_a, _) = sign::gen_keypair();
-        let (random_key_b, _) = sign::gen_keypair();
+        let (random_key_a, _) = safe_crypto::gen_sign_keypair();
+        let (random_key_b, _) = safe_crypto::gen_sign_keypair();
 
         let mut permissions = BTreeMap::new();
         let _ = permissions.insert(

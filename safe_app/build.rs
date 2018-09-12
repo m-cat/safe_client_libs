@@ -12,15 +12,18 @@
 extern crate ffi_utils;
 extern crate jni;
 extern crate routing;
-extern crate rust_sodium;
 extern crate safe_bindgen;
+extern crate safe_crypto;
 #[macro_use]
 extern crate unwrap;
 
 use jni::signature::{JavaType, Primitive};
 use routing::XOR_NAME_LEN;
-use rust_sodium::crypto::{box_, secretbox, sign};
 use safe_bindgen::{Bindgen, FilterMode, LangC, LangCSharp, LangJava};
+use safe_crypto::{
+    NONCE_BYTES, PUBLIC_ENCRYPT_KEY_BYTES, PUBLIC_SIGN_KEY_BYTES, SECRET_ENCRYPT_KEY_BYTES,
+    SECRET_SIGN_KEY_BYTES, SYMMETRIC_KEY_BYTES,
+};
 use std::collections::HashMap;
 use std::env;
 use std::path::Path;
@@ -85,31 +88,27 @@ fn gen_bindings_java() {
         JavaType::Array(Box::new(JavaType::Primitive(Primitive::Byte))),
     );
     type_map.insert(
-        "SignSecretKey",
+        "SecretSignKeyArray",
         JavaType::Array(Box::new(JavaType::Primitive(Primitive::Byte))),
     );
     type_map.insert(
-        "SignPublicKey",
+        "PublicSignKeyArray",
         JavaType::Array(Box::new(JavaType::Primitive(Primitive::Byte))),
     );
     type_map.insert(
-        "SymSecretKey",
+        "SymmetricKeyArray",
         JavaType::Array(Box::new(JavaType::Primitive(Primitive::Byte))),
     );
     type_map.insert(
-        "SymNonce",
+        "NonceArray",
         JavaType::Array(Box::new(JavaType::Primitive(Primitive::Byte))),
     );
     type_map.insert(
-        "AsymPublicKey",
+        "PublicEncryptKeyArray",
         JavaType::Array(Box::new(JavaType::Primitive(Primitive::Byte))),
     );
     type_map.insert(
-        "AsymSecretKey",
-        JavaType::Array(Box::new(JavaType::Primitive(Primitive::Byte))),
-    );
-    type_map.insert(
-        "AsymNonce",
+        "SecretEncryptKeyArray",
         JavaType::Array(Box::new(JavaType::Primitive(Primitive::Byte))),
     );
     type_map.insert("CipherOptHandle", JavaType::Primitive(Primitive::Long));
@@ -195,13 +194,13 @@ fn gen_bindings_csharp() {
         "BindingUtils",
     );
 
-    lang.add_const("ulong", "ASYM_PUBLIC_KEY_LEN", box_::PUBLICKEYBYTES);
-    lang.add_const("ulong", "ASYM_SECRET_KEY_LEN", box_::SECRETKEYBYTES);
-    lang.add_const("ulong", "ASYM_NONCE_LEN", box_::NONCEBYTES);
-    lang.add_const("ulong", "SYM_KEY_LEN", secretbox::KEYBYTES);
-    lang.add_const("ulong", "SYM_NONCE_LEN", secretbox::NONCEBYTES);
-    lang.add_const("ulong", "SIGN_PUBLIC_KEY_LEN", sign::PUBLICKEYBYTES);
-    lang.add_const("ulong", "SIGN_SECRET_KEY_LEN", sign::SECRETKEYBYTES);
+    lang.add_const("ulong", "ASYM_PUBLIC_KEY_LEN", PUBLIC_ENCRYPT_KEY_BYTES);
+    lang.add_const("ulong", "ASYM_SECRET_KEY_LEN", SECRET_ENCRYPT_KEY_BYTES);
+    lang.add_const("ulong", "ASYM_NONCE_LEN", NONCE_BYTES);
+    lang.add_const("ulong", "SYM_KEY_LEN", SYMMETRIC_KEY_BYTES);
+    lang.add_const("ulong", "SYM_NONCE_LEN", NONCE_BYTES);
+    lang.add_const("ulong", "SIGN_PUBLIC_KEY_LEN", PUBLIC_SIGN_KEY_BYTES);
+    lang.add_const("ulong", "SIGN_SECRET_KEY_LEN", SECRET_SIGN_KEY_BYTES);
     lang.add_const("ulong", "XOR_NAME_LEN", XOR_NAME_LEN);
     lang.add_opaque_type("App");
 

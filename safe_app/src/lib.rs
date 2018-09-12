@@ -85,15 +85,14 @@ extern crate maidsafe_utilities;
 #[cfg(test)]
 extern crate rand;
 extern crate routing;
-extern crate rust_sodium;
 #[cfg(any(test, feature = "testing"))]
 extern crate safe_authenticator;
 #[macro_use]
 extern crate safe_core;
+extern crate safe_crypto;
 extern crate self_encryption;
 #[macro_use]
 extern crate serde_derive;
-extern crate tiny_keccak;
 extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;
@@ -155,12 +154,12 @@ use futures::sync::mpsc as futures_mpsc;
 use futures::{future, Future};
 use maidsafe_utilities::serialisation::deserialise;
 use maidsafe_utilities::thread::{self, Joiner};
-use safe_core::crypto::shared_secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::{AccessContInfo, AppKeys, AuthGranted, BootstrapConfig};
 #[cfg(feature = "use-mock-routing")]
 use safe_core::MockRouting as Routing;
 use safe_core::{event_loop, CoreMsg, CoreMsgTx, NetworkEvent, NetworkTx};
+use safe_crypto::SymmetricKey;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -398,7 +397,7 @@ pub struct Unregistered {
 pub struct Registered {
     object_cache: ObjectCache,
     app_id: String,
-    sym_enc_key: shared_secretbox::Key,
+    sym_enc_key: SymmetricKey,
     access_container_info: AccessContInfo,
     access_info: RefCell<AccessContainerEntry>,
 }
@@ -412,7 +411,7 @@ impl AppContext {
 
     fn registered(
         app_id: String,
-        sym_enc_key: shared_secretbox::Key,
+        sym_enc_key: SymmetricKey,
         access_container_info: AccessContInfo,
     ) -> Self {
         AppContext::Registered(Rc::new(Registered {
@@ -433,7 +432,7 @@ impl AppContext {
     }
 
     /// Symmetric encryption/decryption key.
-    pub fn sym_enc_key(&self) -> Result<&shared_secretbox::Key, AppError> {
+    pub fn sym_enc_key(&self) -> Result<&SymmetricKey, AppError> {
         Ok(&self.as_registered()?.sym_enc_key)
     }
 
@@ -476,7 +475,7 @@ fn refresh_access_info(context: Rc<Registered>, client: &AppClient) -> Box<AppFu
             entry_key,
         ).map_err(AppError::from)
         .and_then(move |value| {
-            let encoded = utils::symmetric_decrypt(&value.content, &context.sym_enc_key)?;
+            let encoded = context.sym_enc_key.decrypt_bytes(&value.content)?;
             let decoded = deserialise(&encoded)?;
 
             *context.access_info.borrow_mut() = decoded;

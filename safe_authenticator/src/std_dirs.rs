@@ -15,7 +15,6 @@ use routing::{ClientError, Value};
 use safe_core::ipc::access_container_enc_key;
 use safe_core::mdata_info;
 use safe_core::nfs::create_dir;
-use safe_core::utils::symmetric_encrypt;
 use safe_core::{Client, CoreError, FutureExt, MDataInfo, DIR_TAG};
 use std::collections::HashMap;
 use {AuthError, AuthFuture};
@@ -112,11 +111,8 @@ fn create_access_container(
             ))),
         ).map_err(AuthError::from)
     );
-    let access_cont_value = fry!(symmetric_encrypt(
-        &fry!(serialise(default_entries)),
-        &enc_key,
-        None,
-    ));
+    let serialised_entries = fry!(serialise(default_entries));
+    let access_cont_value = fry!(enc_key.encrypt_bytes(&serialised_entries));
 
     create_dir(
         client,

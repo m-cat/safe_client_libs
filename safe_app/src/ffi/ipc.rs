@@ -237,14 +237,13 @@ mod tests {
     use ffi_utils::ReprC;
     use rand;
     use routing::{Action, PermissionSet};
-    use rust_sodium::crypto::secretbox;
-    use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
     use safe_core::ffi::ipc::resp::AuthGranted as FfiAuthGranted;
     use safe_core::ipc::{
         self, AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted, AuthReq, BootstrapConfig,
         ContainersReq, IpcMsg, IpcReq, IpcResp, Permission, ShareMData, ShareMDataReq,
     };
     use safe_core::utils;
+    use safe_crypto::{self, Nonce, SymmetricKey};
     use std::collections::HashMap;
     use std::ffi::CString;
     use std::os::raw::c_void;
@@ -383,7 +382,7 @@ mod tests {
         let access_container_info = AccessContInfo {
             id: rand::random(),
             tag: rand::random(),
-            nonce: secretbox::gen_nonce(),
+            nonce: Nonce::new(),
         };
 
         let auth_granted = AuthGranted {
@@ -719,10 +718,10 @@ mod tests {
     }
 
     fn gen_app_keys() -> AppKeys {
-        let (owner_key, _) = shared_sign::gen_keypair();
-        let enc_key = shared_secretbox::gen_key();
-        let (sign_pk, sign_sk) = shared_sign::gen_keypair();
-        let (enc_pk, enc_sk) = shared_box::gen_keypair();
+        let (owner_key, _) = safe_crypto::gen_sign_keypair();
+        let enc_key = SymmetricKey::new();
+        let (sign_pk, sign_sk) = safe_crypto::gen_sign_keypair();
+        let (enc_pk, enc_sk) = safe_crypto::gen_encrypt_keypair();
 
         AppKeys {
             owner_key,

@@ -76,7 +76,7 @@ extern crate safe_app;
 extern crate safe_authenticator;
 #[macro_use]
 extern crate safe_core;
-extern crate tiny_keccak;
+extern crate safe_crypto;
 #[macro_use]
 extern crate unwrap;
 
@@ -90,7 +90,6 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::sync::mpsc;
 use std::time::UNIX_EPOCH;
-use tiny_keccak::sha3_256;
 
 const INVITE_TOKEN_SIZE: usize = 90;
 const INVITE_TOKEN_TYPE_TAG: u64 = 8;
@@ -142,7 +141,7 @@ fn main() {
 
     if matches.is_present("get-pk") {
         let sign_pk = unwrap!(seed::sign_pk_from_seed(&seed));
-        return println!("Public Signing Key: {:?}", sign_pk.0);
+        return println!("Public Signing Key: {}", sign_pk);
     }
 
     // Check a single invite.
@@ -153,7 +152,7 @@ fn main() {
         let (tx, rx) = mpsc::channel();
 
         unwrap!(app.send(move |client, _| {
-            let id = XorName(sha3_256(invite.as_str().as_bytes()));
+            let id = XorName(safe_crypto::hash(invite.as_str().as_bytes()));
 
             client
                 .get_mdata_version(id, INVITE_TOKEN_TYPE_TAG)
@@ -208,7 +207,7 @@ fn main() {
 
     for i in 0..num_invites {
         let inv = generate_random_printable(INVITE_TOKEN_SIZE);
-        let id = XorName(sha3_256(inv.as_bytes()));
+        let id = XorName(safe_crypto::hash(inv.as_bytes()));
 
         let perms = btree_map![User::Anyone => PermissionSet::new()
                                        .allow(Action::Insert)

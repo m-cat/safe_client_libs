@@ -14,19 +14,19 @@ use safe_core::MockRouting as Routing;
 use errors::AppError;
 use lru_cache::LruCache;
 use routing::{Authority, FullId, XorName};
-use rust_sodium::crypto::{box_, sign};
 use safe_core::client::{
     setup_routing, spawn_routing_thread, ClientInner, IMMUT_DATA_CACHE_SIZE, REQUEST_TIMEOUT_SECS,
 };
-use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 use safe_core::ipc::BootstrapConfig;
 use safe_core::{Client, ClientKeys, NetworkTx};
+use safe_crypto::{
+    self, PublicEncryptKey, PublicSignKey, SecretEncryptKey, SecretSignKey, SymmetricKey,
+};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
-use tiny_keccak::sha3_256;
 use tokio_core::reactor::Handle;
 use {AppContext, AppMsgTx};
 
@@ -70,7 +70,7 @@ impl AppClient {
     /// apps to authorise using an existing pair of keys.
     pub(crate) fn from_keys(
         keys: ClientKeys,
-        owner: sign::PublicKey,
+        owner: PublicSignKey,
         el_handle: Handle,
         core_tx: AppMsgTx,
         net_tx: NetworkTx,
@@ -90,7 +90,7 @@ impl AppClient {
     )]
     pub(crate) fn from_keys_with_hook<F>(
         keys: ClientKeys,
-        owner: sign::PublicKey,
+        owner: PublicSignKey,
         el_handle: Handle,
         core_tx: AppMsgTx,
         net_tx: NetworkTx,
@@ -113,7 +113,7 @@ impl AppClient {
 
     fn from_keys_impl<F>(
         keys: ClientKeys,
-        owner: sign::PublicKey,
+        owner: PublicSignKey,
         el_handle: Handle,
         core_tx: AppMsgTx,
         net_tx: NetworkTx,
@@ -129,7 +129,7 @@ impl AppClient {
         routing = routing_wrapper_fn(routing);
         let joiner = spawn_routing_thread(routing_rx, core_tx.clone(), net_tx.clone());
 
-        let digest = sha3_256(&owner.0);
+        let digest = safe_crypto::hash(&owner.into_bytes());
         let cm_addr = Authority::ClientManager(XorName(digest));
 
         Ok(Self {
@@ -175,32 +175,32 @@ impl Client for AppClient {
         self.inner.clone()
     }
 
-    fn public_signing_key(&self) -> Option<sign::PublicKey> {
+    fn public_signing_key(&self) -> Option<PublicSignKey> {
         let app_inner = self.app_inner.borrow();
         Some(app_inner.keys.clone()?.sign_pk)
     }
 
-    fn secret_signing_key(&self) -> Option<shared_sign::SecretKey> {
+    fn secret_signing_key(&self) -> Option<SecretSignKey> {
         let app_inner = self.app_inner.borrow();
         Some(app_inner.keys.clone()?.sign_sk)
     }
 
-    fn public_encryption_key(&self) -> Option<box_::PublicKey> {
+    fn public_encryption_key(&self) -> Option<PublicEncryptKey> {
         let app_inner = self.app_inner.borrow();
         Some(app_inner.keys.clone()?.enc_pk)
     }
 
-    fn secret_encryption_key(&self) -> Option<shared_box::SecretKey> {
+    fn secret_encryption_key(&self) -> Option<SecretEncryptKey> {
         let app_inner = self.app_inner.borrow();
         Some(app_inner.keys.clone()?.enc_sk)
     }
 
-    fn secret_symmetric_key(&self) -> Option<shared_secretbox::Key> {
+    fn secret_symmetric_key(&self) -> Option<SymmetricKey> {
         let app_inner = self.app_inner.borrow();
         Some(app_inner.keys.clone()?.enc_key)
     }
 
-    fn owner_key(&self) -> Option<sign::PublicKey> {
+    fn owner_key(&self) -> Option<PublicSignKey> {
         let app_inner = self.app_inner.borrow();
         app_inner.owner_key
     }
@@ -223,7 +223,7 @@ impl fmt::Debug for AppClient {
 
 struct AppInner {
     keys: Option<ClientKeys>,
-    owner_key: Option<sign::PublicKey>,
+    owner_key: Option<PublicSignKey>,
     cm_addr: Option<Authority<XorName>>,
     config: Option<BootstrapConfig>,
 }
@@ -231,7 +231,7 @@ struct AppInner {
 impl AppInner {
     pub fn new(
         keys: Option<ClientKeys>,
-        owner_key: Option<sign::PublicKey>,
+        owner_key: Option<PublicSignKey>,
         cm_addr: Option<Authority<XorName>>,
         config: Option<BootstrapConfig>,
     ) -> AppInner {

@@ -11,11 +11,10 @@ use errors::AppError;
 use ffi_utils::{catch_unwind_cb, FfiResult, ReprC, SafePtr, FFI_RESULT_OK};
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::XorName;
-use rust_sodium::crypto::secretbox;
-use safe_core::crypto::shared_secretbox;
-use safe_core::ffi::arrays::{SymNonce, SymSecretKey, XorNameArray};
+use safe_core::ffi::arrays::{NonceArray, SymmetricKeyArray, XorNameArray};
 use safe_core::ffi::MDataInfo;
 use safe_core::MDataInfo as NativeMDataInfo;
+use safe_crypto::{Nonce, SymmetricKey};
 use std::os::raw::c_void;
 use std::slice;
 
@@ -25,8 +24,8 @@ use std::slice;
 pub unsafe extern "C" fn mdata_info_new_private(
     name: *const XorNameArray,
     type_tag: u64,
-    secret_key: *const SymSecretKey,
-    nonce: *const SymNonce,
+    secret_key: *const SymmetricKeyArray,
+    nonce: *const NonceArray,
     user_data: *mut c_void,
     o_cb: extern "C" fn(
         user_data: *mut c_void,
@@ -36,8 +35,8 @@ pub unsafe extern "C" fn mdata_info_new_private(
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<_, AppError> {
         let name = XorName(*name);
-        let sk = shared_secretbox::Key::from_raw(&*secret_key);
-        let nonce = secretbox::Nonce(*nonce);
+        let sk = SymmetricKey::from_bytes(*secret_key);
+        let nonce = Nonce::from_bytes(*nonce);
 
         let info = NativeMDataInfo::new_private(name, type_tag, (sk, nonce));
         let info = info.into_repr_c();
@@ -228,9 +227,8 @@ mod tests {
     use ffi_utils::test_utils::{call_1, call_vec_u8};
     use rand;
     use routing::XOR_NAME_LEN;
-    use rust_sodium::crypto::secretbox;
-    use safe_core::crypto::shared_secretbox;
     use safe_core::MDataInfo;
+    use safe_crypto::{Nonce, SymmetricKey};
 
     // Test creating non-encrypted mdata info.
     #[test]
@@ -252,14 +250,14 @@ mod tests {
         let rand_info: MDataInfo =
             unsafe { unwrap!(call_1(|ud, cb| mdata_info_random_private(type_tag, ud, cb))) };
 
-        let key = shared_secretbox::gen_key();
-        let nonce = secretbox::gen_nonce();
+        let key = SymmetricKey::new();
+        let nonce = Nonce::new();
         let new_info: MDataInfo = unsafe {
             unwrap!(call_1(|ud, cb| mdata_info_new_private(
                 &[2; XOR_NAME_LEN],
                 type_tag,
-                &key.0,
-                &nonce.0,
+                &key.clone().into_bytes(),
+                &nonce.clone().into_bytes(),
                 ud,
                 cb
             )))

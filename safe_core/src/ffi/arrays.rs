@@ -9,7 +9,7 @@
 use routing::XOR_NAME_LEN;
 use safe_crypto::{
     NONCE_BYTES, PUBLIC_ENCRYPT_KEY_BYTES, PUBLIC_SIGN_KEY_BYTES, SECRET_ENCRYPT_KEY_BYTES,
-    SECRET_SIGN_KEY_BYTES, SYMMETRIC_KEY_BYTES,
+    SECRET_SIGN_KEY_BYTES, SIGNATURE_BYTES, SYMMETRIC_KEY_BYTES,
 };
 
 /// Array containing public key bytes.
@@ -19,7 +19,6 @@ pub type SecretEncryptKeyArray = [u8; SECRET_ENCRYPT_KEY_BYTES];
 
 /// Array containing symmetric secret key bytes.
 pub type SymmetricKeyArray = [u8; SYMMETRIC_KEY_BYTES];
-
 /// Array containing nonce bytes.
 pub type NonceArray = [u8; NONCE_BYTES];
 
@@ -27,6 +26,9 @@ pub type NonceArray = [u8; NONCE_BYTES];
 pub type PublicSignKeyArray = [u8; PUBLIC_SIGN_KEY_BYTES];
 /// Array containing sign secret key bytes.
 pub type SecretSignKeyArray = [u8; SECRET_SIGN_KEY_BYTES];
+
+/// Array containing signature bytes.
+pub type SignatureArray = [u8; SIGNATURE_BYTES];
 
 /// Array containing `XorName` bytes.
 pub type XorNameArray = [u8; XOR_NAME_LEN];

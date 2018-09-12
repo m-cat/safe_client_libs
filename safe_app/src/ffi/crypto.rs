@@ -13,19 +13,17 @@ use ffi::object_cache::{
     EncryptPubKeyHandle, EncryptSecKeyHandle, SignPubKeyHandle, SignSecKeyHandle,
     NULL_OBJECT_HANDLE,
 };
-use ffi_utils::{
-    catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, SafePtr, FFI_RESULT_OK,
-};
-use maidsafe_utilities::serialisation::{deserialise, serialise};
-use rust_sodium::crypto::{box_, sealedbox, sign};
-use safe_core::crypto::{shared_box, shared_sign};
+use ffi_utils::{catch_unwind_cb, vec_clone_from_raw_parts, FfiResult, OpaqueCtx, FFI_RESULT_OK};
 use safe_core::ffi::arrays::{
-    AsymNonce, AsymPublicKey, AsymSecretKey, SignPublicKey, SignSecretKey,
+    NonceArray, PublicEncryptKeyArray, PublicSignKeyArray, SecretEncryptKeyArray,
+    SecretSignKeyArray, SignatureArray,
 };
 use safe_core::Client;
+use safe_crypto::{
+    self, Nonce, PublicEncryptKey, PublicSignKey, SecretEncryptKey, SecretSignKey, Signature,
+};
 use std::os::raw::c_void;
 use std::slice;
-use tiny_keccak::sha3_256;
 use App;
 
 /// Special value that represents that a message should be signed by the app.
@@ -62,7 +60,7 @@ pub unsafe extern "C" fn sign_generate_key_pair(
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let (ourpk, oursk) = shared_sign::gen_keypair();
+        let (ourpk, oursk) = safe_crypto::gen_sign_keypair();
         let user_data = OpaqueCtx(user_data);
 
         (*app).send(move |_, context| {
@@ -80,12 +78,12 @@ pub unsafe extern "C" fn sign_generate_key_pair(
 #[no_mangle]
 pub unsafe extern "C" fn sign_pub_key_new(
     app: *const App,
-    data: *const SignPublicKey,
+    data: *const PublicSignKeyArray,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, handle: SignPubKeyHandle),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let key = sign::PublicKey(*data);
+        let key = PublicSignKey::from_bytes(*data);
         send_sync(app, user_data, o_cb, move |_, context| {
             Ok(context.object_cache().insert_pub_sign_key(key))
         })
@@ -101,13 +99,13 @@ pub unsafe extern "C" fn sign_pub_key_get(
     o_cb: extern "C" fn(
         user_data: *mut c_void,
         result: *const FfiResult,
-        pub_sign_key: *const SignPublicKey,
+        pub_sign_key: *const PublicSignKeyArray,
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {
             let key = context.object_cache().get_pub_sign_key(handle)?;
-            Ok(&key.0)
+            Ok(&key.into_bytes())
         })
     })
 }
@@ -132,12 +130,12 @@ pub unsafe extern "C" fn sign_pub_key_free(
 #[no_mangle]
 pub unsafe extern "C" fn sign_sec_key_new(
     app: *const App,
-    data: *const SignSecretKey,
+    data: *const SecretSignKeyArray,
     user_data: *mut c_void,
     o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, handle: SignSecKeyHandle),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let key = shared_sign::SecretKey::from_raw(&*data);
+        let key = SecretSignKey::from_bytes(*data);
         send_sync(app, user_data, o_cb, move |_, context| {
             Ok(context.object_cache().insert_sec_sign_key(key))
         })
@@ -153,13 +151,13 @@ pub unsafe extern "C" fn sign_sec_key_get(
     o_cb: extern "C" fn(
         user_data: *mut c_void,
         result: *const FfiResult,
-        pub_sign_key: *const SignSecretKey,
+        pub_sign_key: *const SecretSignKeyArray,
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {
             let key = context.object_cache().get_sec_sign_key(handle)?;
-            Ok(&key.0)
+            Ok(&key.clone().into_bytes())
         })
     })
 }
@@ -214,7 +212,7 @@ pub unsafe extern "C" fn enc_generate_key_pair(
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let (ourpk, oursk) = shared_box::gen_keypair();
+        let (ourpk, oursk) = safe_crypto::gen_encrypt_keypair();
         let user_data = OpaqueCtx(user_data);
 
         (*app).send(move |_, context| {
@@ -232,7 +230,7 @@ pub unsafe extern "C" fn enc_generate_key_pair(
 #[no_mangle]
 pub unsafe extern "C" fn enc_pub_key_new(
     app: *const App,
-    data: *const AsymPublicKey,
+    data: *const PublicEncryptKeyArray,
     user_data: *mut c_void,
     o_cb: extern "C" fn(
         user_data: *mut c_void,
@@ -241,7 +239,7 @@ pub unsafe extern "C" fn enc_pub_key_new(
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let key = box_::PublicKey(*data);
+        let key = PublicEncryptKey::from_bytes(*data);
         send_sync(app, user_data, o_cb, move |_, context| {
             Ok(context.object_cache().insert_encrypt_key(key))
         })
@@ -257,13 +255,13 @@ pub unsafe extern "C" fn enc_pub_key_get(
     o_cb: extern "C" fn(
         user_data: *mut c_void,
         result: *const FfiResult,
-        pub_enc_key: *const AsymPublicKey,
+        pub_enc_key: *const PublicEncryptKeyArray,
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {
             let key = context.object_cache().get_encrypt_key(handle)?;
-            Ok(&key.0)
+            Ok(&key.into_bytes())
         })
     })
 }
@@ -288,7 +286,7 @@ pub unsafe extern "C" fn enc_pub_key_free(
 #[no_mangle]
 pub unsafe extern "C" fn enc_secret_key_new(
     app: *const App,
-    data: *const AsymSecretKey,
+    data: *const SecretEncryptKeyArray,
     user_data: *mut c_void,
     o_cb: extern "C" fn(
         user_data: *mut c_void,
@@ -297,7 +295,7 @@ pub unsafe extern "C" fn enc_secret_key_new(
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
-        let key = shared_box::SecretKey::from_raw(&*data);
+        let key = SecretEncryptKey::from_bytes(*data);
         send_sync(app, user_data, o_cb, move |_, context| {
             Ok(context.object_cache().insert_secret_key(key))
         })
@@ -313,13 +311,13 @@ pub unsafe extern "C" fn enc_secret_key_get(
     o_cb: extern "C" fn(
         user_data: *mut c_void,
         result: *const FfiResult,
-        sec_enc_key: *const AsymSecretKey,
+        sec_enc_key: *const SecretEncryptKeyArray,
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         send_sync(app, user_data, o_cb, move |_, context| {
             let key = context.object_cache().get_secret_key(handle)?;
-            Ok(&key.0)
+            Ok(&key.clone().into_bytes())
         })
     })
 }
@@ -340,7 +338,7 @@ pub unsafe extern "C" fn enc_secret_key_free(
     })
 }
 
-/// Signs arbitrary data using a given secret sign key.
+/// Returns the signature for arbitrary data using a given secret sign key.
 /// If `sign_sk_h` is `SIGN_WITH_APP`, then uses the app's own secret key to sign.
 #[no_mangle]
 pub unsafe extern "C" fn sign(
@@ -352,8 +350,7 @@ pub unsafe extern "C" fn sign(
     o_cb: extern "C" fn(
         user_data: *mut c_void,
         result: *const FfiResult,
-        signed_data: *const u8,
-        signed_data_len: usize,
+        signature: *const SignatureArray,
     ),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
@@ -380,38 +377,30 @@ pub unsafe extern "C" fn sign(
                 sign_sk.clone()
             };
 
-            let signed_text = sign::sign(&plaintext, &sign_sk);
-            o_cb(
-                user_data.0,
-                FFI_RESULT_OK,
-                signed_text.as_safe_ptr(),
-                signed_text.len(),
-            );
+            let signature = sign_sk.sign_detached(&plaintext).into_bytes();
+            o_cb(user_data.0, FFI_RESULT_OK, &signature);
 
             None
         })
     })
 }
 
-/// Verifies signed data using a given public sign key.
+/// Verifies the signature for some data using a given public sign key.
 /// Returns an error if the message could not be verified.
 #[no_mangle]
 pub unsafe extern "C" fn verify(
     app: *const App,
-    signed_data: *const u8,
-    signed_data_len: usize,
+    data: *const u8,
+    data_len: usize,
+    signature: *const SignatureArray,
     sign_pk_h: SignPubKeyHandle,
     user_data: *mut c_void,
-    o_cb: extern "C" fn(
-        user_data: *mut c_void,
-        result: *const FfiResult,
-        verified_data: *const u8,
-        verified_data_len: usize,
-    ),
+    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, verified: u32),
 ) {
     catch_unwind_cb(user_data, o_cb, || {
         let user_data = OpaqueCtx(user_data);
-        let signed = vec_clone_from_raw_parts(signed_data, signed_data_len);
+        let data = vec_clone_from_raw_parts(data, data_len);
+        let signature = Signature::from_bytes(*signature);
 
         (*app).send(move |_, context| {
             let sign_pk = try_cb!(
@@ -420,17 +409,12 @@ pub unsafe extern "C" fn verify(
                 o_cb
             );
 
-            let verified = try_cb!(
-                sign::verify(&signed, &sign_pk).map_err(|()| AppError::EncodeDecodeError),
-                user_data,
-                o_cb
-            );
-            o_cb(
-                user_data.0,
-                FFI_RESULT_OK,
-                verified.as_safe_ptr(),
-                verified.len(),
-            );
+            let verified = if sign_pk.verify_detached(&signature, &data) {
+                1
+            } else {
+                0
+            };
+            o_cb(user_data.0, FFI_RESULT_OK, verified);
 
             None
         })
@@ -464,13 +448,15 @@ pub unsafe extern "C" fn encrypt(
                 user_data,
                 o_cb
             );
-            let sk = try_cb!(context.object_cache().get_secret_key(secret_key_h), user_data, o_cb);
+            let sk = try_cb!(
+                context.object_cache().get_secret_key(secret_key_h),
+                user_data,
+                o_cb
+            );
 
-            let nonce = box_::gen_nonce();
+            let shared_key = sk.shared_secret(&pk);
 
-            let ciphertext = box_::seal(&plaintext, &nonce, &pk, &sk);
-
-            match serialise(&(nonce, ciphertext)) {
+            match shared_key.encrypt(&plaintext) {
                 Ok(result) => o_cb(user_data.0, FFI_RESULT_OK, result.as_ptr(), result.len()),
                 res @ Err(..) => {
                     call_result_cb!(res.map_err(AppError::from), user_data, o_cb);
@@ -509,16 +495,16 @@ pub unsafe extern "C" fn decrypt(
                 user_data,
                 o_cb
             );
-            let sk = try_cb!(context.object_cache().get_secret_key(secret_key_h), user_data, o_cb);
+            let sk = try_cb!(
+                context.object_cache().get_secret_key(secret_key_h),
+                user_data,
+                o_cb
+            );
 
-            match deserialise::<(box_::Nonce, Vec<u8>)>(&encrypted_text) {
-                Ok((nonce, ciphertext)) => {
-                    let plaintext = try_cb!(
-                        box_::open(&ciphertext, &nonce, &pk, &sk)
-                            .map_err(|()| AppError::EncodeDecodeError),
-                        user_data,
-                        o_cb
-                    );
+            let shared_key = sk.shared_secret(&pk);
+
+            match shared_key.decrypt::<Vec<u8>>(&encrypted_text) {
+                Ok(plaintext) => {
                     o_cb(
                         user_data.0,
                         FFI_RESULT_OK,
@@ -563,7 +549,11 @@ pub unsafe extern "C" fn encrypt_sealed_box(
                 o_cb
             );
 
-            let ciphertext = sealedbox::seal(&plaintext, &pk);
+            let ciphertext = try_cb!(
+                pk.anonymously_encrypt(&plaintext).map_err(AppError::from),
+                user_data,
+                o_cb
+            );
             o_cb(
                 user_data.0,
                 FFI_RESULT_OK,
@@ -603,10 +593,15 @@ pub unsafe extern "C" fn decrypt_sealed_box(
                 user_data,
                 o_cb
             );
-            let sk = try_cb!(context.object_cache().get_secret_key(secret_key_h), user_data, o_cb);
+            let sk = try_cb!(
+                context.object_cache().get_secret_key(secret_key_h),
+                user_data,
+                o_cb
+            );
 
-            let plaintext = try_cb!(
-                sealedbox::open(&plaintext, &pk, &sk).map_err(|()| AppError::EncodeDecodeError),
+            let plaintext: Vec<u8> = try_cb!(
+                sk.anonymously_decrypt(&plaintext, &pk)
+                    .map_err(AppError::from),
                 user_data,
                 o_cb
             );
@@ -638,7 +633,7 @@ pub unsafe extern "C" fn sha3_hash(
     catch_unwind_cb(user_data, o_cb, || -> Result<(), AppError> {
         let plaintext = slice::from_raw_parts(data, data_len);
 
-        let hash = sha3_256(plaintext);
+        let hash = safe_crypto::hash(plaintext);
         o_cb(user_data, FFI_RESULT_OK, hash.as_ptr(), hash.len());
 
         Ok(())
@@ -649,11 +644,11 @@ pub unsafe extern "C" fn sha3_hash(
 #[no_mangle]
 pub unsafe extern "C" fn generate_nonce(
     user_data: *mut c_void,
-    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, nonce: *const AsymNonce),
+    o_cb: extern "C" fn(user_data: *mut c_void, result: *const FfiResult, nonce: *const NonceArray),
 ) {
     catch_unwind_cb(user_data, o_cb, || -> Result<(), AppError> {
-        let nonce = box_::gen_nonce();
-        o_cb(user_data, FFI_RESULT_OK, &nonce.0);
+        let nonce = Nonce::new();
+        o_cb(user_data, FFI_RESULT_OK, &nonce.into_bytes());
 
         Ok(())
     });
@@ -663,8 +658,10 @@ pub unsafe extern "C" fn generate_nonce(
 mod tests {
     use super::*;
     use ffi_utils::test_utils::{call_0, call_1, call_2, call_vec_u8};
-    use rust_sodium::crypto::box_;
-    use safe_core::arrays::{AsymNonce, AsymPublicKey, SignPublicKey, SignSecretKey};
+    use safe_core::arrays::{
+        NonceArray, PublicEncryptKeyArray, PublicSignKeyArray, SecretSignKeyArray,
+    };
+    use safe_crypto::{PublicEncryptKey, NONCE_BYTES};
     use test_utils::{create_app, run_now};
 
     // Test signing and verifying messages between apps.
@@ -677,7 +674,7 @@ mod tests {
             unsafe { unwrap!(call_2(|ud, cb| sign_generate_key_pair(&app1, ud, cb))) };
 
         // Copying app1 pubkey to app2 object cache
-        let pk_raw: SignPublicKey =
+        let pk_raw: PublicSignKeyArray =
             unsafe { unwrap!(call_1(|ud, cb| sign_pub_key_get(&app1, app1_pk_h, ud, cb))) };
 
         let app2_pk_h: SignPubKeyHandle =
@@ -685,8 +682,8 @@ mod tests {
 
         // Trying to sign a message from app1
         let data = b"hi there";
-        let signed = unsafe {
-            unwrap!(call_vec_u8(|ud, cb| sign(
+        let sig1 = unsafe {
+            unwrap!(call_1(|ud, cb| sign(
                 &app1,
                 data.as_ptr(),
                 data.len(),
@@ -697,22 +694,23 @@ mod tests {
         };
 
         // Trying to verify the message in app2
-        let verified = unsafe {
-            unwrap!(call_vec_u8(|ud, cb| verify(
+        let verified: u32 = unsafe {
+            unwrap!(call_1(|ud, cb| verify(
                 &app2,
-                signed.as_ptr(),
-                signed.len(),
+                data.as_ptr(),
+                data.len(),
+                &sig1,
                 app2_pk_h,
                 ud,
                 cb
             )))
         };
 
-        assert_eq!(&verified, data);
+        assert_eq!(verified, 1);
 
         // Trying to sign a message from app1 using its secret sign key
-        let signed = unsafe {
-            unwrap!(call_vec_u8(|ud, cb| sign(
+        let sig2 = unsafe {
+            unwrap!(call_1(|ud, cb| sign(
                 &app1,
                 data.as_ptr(),
                 data.len(),
@@ -725,23 +723,33 @@ mod tests {
         // Trying to verify the message in app2
         let app1_pk_h = unsafe { unwrap!(call_1(|ud, cb| app_pub_sign_key(&app1, ud, cb))) };
         // Copying app1 pubkey to app2 object cache
-        let pk_raw: AsymPublicKey =
+        let pk_raw: PublicEncryptKeyArray =
             unsafe { unwrap!(call_1(|ud, cb| sign_pub_key_get(&app1, app1_pk_h, ud, cb))) };
 
         let app2_pk2_h =
             unsafe { unwrap!(call_1(|ud, cb| sign_pub_key_new(&app2, &pk_raw, ud, cb))) };
-        let verified = unsafe {
-            unwrap!(call_vec_u8(|ud, cb| verify(
+        let verified: u32 = unsafe {
+            unwrap!(call_1(|ud, cb| verify(
                 &app2,
-                signed.as_ptr(),
-                signed.len(),
+                data.as_ptr(),
+                data.len(),
+                &sig2,
                 app2_pk2_h,
                 ud,
                 cb
             )))
         };
 
-        assert_eq!(&verified, data);
+        assert_eq!(verified, 1);
+
+        // Free handles.
+        unsafe {
+            unwrap!(call_0(|ud, cb| sign_pub_key_free(&app1, app1_pk_h, ud, cb)));
+            unwrap!(call_0(|ud, cb| sign_pub_key_free(&app2, app2_pk_h, ud, cb)));
+            unwrap!(call_0(|ud, cb| sign_pub_key_free(
+                &app2, app2_pk2_h, ud, cb
+            )));
+        }
     }
 
     // Test encrypting and decrypting messages between apps.
@@ -757,9 +765,9 @@ mod tests {
 
         // Copying app2 pubkey to app1 object cache
         // and app1 pubkey to app2 object cache
-        let pk2_raw: AsymPublicKey =
+        let pk2_raw: PublicEncryptKeyArray =
             unsafe { unwrap!(call_1(|ud, cb| enc_pub_key_get(&app2, app2_pk2_h, ud, cb))) };
-        let pk1_raw: AsymPublicKey =
+        let pk1_raw: PublicEncryptKeyArray =
             unsafe { unwrap!(call_1(|ud, cb| enc_pub_key_get(&app1, app1_pk1_h, ud, cb))) };
 
         let app1_pk2_h =
@@ -808,7 +816,7 @@ mod tests {
 
         // Copying app2 pubkey to app1 object cache
         // and app1 pubkey to app2 object cache
-        let pk2_raw: AsymPublicKey =
+        let pk2_raw: PublicEncryptKeyArray =
             unsafe { unwrap!(call_1(|ud, cb| enc_pub_key_get(&app2, app2_pk2_h, ud, cb))) };
 
         let app1_pk2_h =
@@ -857,7 +865,7 @@ mod tests {
             app_sign_key1
         });
 
-        let app_sign_key1_raw: SignPublicKey = unsafe {
+        let app_sign_key1_raw: PublicSignKeyArray = unsafe {
             unwrap!(call_1(|ud, cb| sign_pub_key_get(
                 &app,
                 app_sign_key1_h,
@@ -905,13 +913,13 @@ mod tests {
         let app_sign_key1_h = unsafe {
             unwrap!(call_1(|ud, cb| sign_sec_key_new(
                 &app,
-                &app_sign_key1.0,
+                &app_sign_key1.clone().into_bytes(),
                 ud,
                 cb
             ),))
         };
 
-        let app_sign_key1_raw: SignSecretKey = unsafe {
+        let app_sign_key1_raw: SecretSignKeyArray = unsafe {
             unwrap!(call_1(|ud, cb| sign_sec_key_get(
                 &app,
                 app_sign_key1_h,
@@ -931,7 +939,7 @@ mod tests {
 
         run_now(&app, move |_, context| {
             let sign_key = unwrap!(context.object_cache().get_sec_sign_key(app_sign_key2_h));
-            assert_eq!(*app_sign_key1, *sign_key.clone());
+            assert_eq!(app_sign_key1, sign_key.clone());
         });
 
         unsafe {
@@ -958,7 +966,7 @@ mod tests {
             app_enc_key1
         });
 
-        let app_enc_key1_raw: AsymPublicKey = unsafe {
+        let app_enc_key1_raw: PublicEncryptKeyArray = unsafe {
             unwrap!(call_1(|ud, cb| enc_pub_key_get(
                 &app,
                 app_enc_key1_h,
@@ -999,7 +1007,7 @@ mod tests {
         let (app_public_key_h, app_secret_key1_h) =
             unsafe { unwrap!(call_2(|ud, cb| enc_generate_key_pair(&app, ud, cb))) };
 
-        let app_public_key1: AsymPublicKey = unsafe {
+        let app_public_key1: PublicEncryptKeyArray = unsafe {
             unwrap!(call_1(|ud, cb| enc_pub_key_get(
                 &app,
                 app_public_key_h,
@@ -1007,7 +1015,7 @@ mod tests {
                 cb
             ),))
         };
-        let app_secret_key1: AsymSecretKey = unsafe {
+        let app_secret_key1: SecretEncryptKeyArray = unsafe {
             unwrap!(call_1(|ud, cb| enc_secret_key_get(
                 &app,
                 app_secret_key1_h,
@@ -1018,15 +1026,18 @@ mod tests {
 
         let app_secret_key1 = run_now(&app, move |_client, context| {
             let app_public_key2 = unwrap!(context.object_cache().get_encrypt_key(app_public_key_h));
-            assert_eq!(box_::PublicKey(app_public_key1), *app_public_key2);
+            assert_eq!(
+                PublicEncryptKey::from_bytes(app_public_key1),
+                *app_public_key2
+            );
 
             let app_secret_key2 = unwrap!(context.object_cache().get_secret_key(app_secret_key1_h));
-            assert_eq!(app_secret_key1, app_secret_key2.0);
+            assert_eq!(app_secret_key1, app_secret_key2.clone().into_bytes());
 
             app_secret_key1
         });
 
-        let app_secret_key1_raw: AsymSecretKey = unsafe {
+        let app_secret_key1_raw: SecretEncryptKeyArray = unsafe {
             unwrap!(call_1(|ud, cb| enc_secret_key_get(
                 &app,
                 app_secret_key1_h,
@@ -1046,7 +1057,7 @@ mod tests {
 
         run_now(&app, move |_, context| {
             let app_secret_key2 = unwrap!(context.object_cache().get_secret_key(app_secret_key2_h));
-            assert_eq!(app_secret_key1, app_secret_key2.0);
+            assert_eq!(app_secret_key1, app_secret_key2.clone().into_bytes());
         });
 
         unsafe {
@@ -1059,11 +1070,16 @@ mod tests {
         }
     }
 
-    // Test that generated nonces are the correct length.
+    // Test that generated nonces are the correct length and don't get dropped out of memory.
     #[test]
     fn nonce_smoke_test() {
-        let nonce: AsymNonce = unsafe { unwrap!(call_1(|ud, cb| generate_nonce(ud, cb))) };
-        assert_eq!(nonce.len(), box_::NONCEBYTES);
+        let nonce1: NonceArray = unsafe { unwrap!(call_1(|ud, cb| generate_nonce(ud, cb))) };
+        let nonce2 = nonce1.clone();
+        let nonce3: NonceArray = unsafe { unwrap!(call_1(|ud, cb| generate_nonce(ud, cb))) };
+
+        assert_eq!(nonce1.len(), NONCE_BYTES);
+        assert_eq!(nonce1, nonce2);
+        assert_ne!(nonce1, nonce3);
     }
 
     // Test that generated sha3 hashes are the correct length.

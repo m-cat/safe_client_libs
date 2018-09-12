@@ -28,6 +28,7 @@ use safe_core::ipc::{
     self, AuthReq, BootstrapConfig, ContainersReq, IpcError, IpcMsg, IpcReq, IpcResp, Permission,
 };
 use safe_core::{app_container_name, mdata_info, Client};
+use safe_crypto;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc;
@@ -37,7 +38,6 @@ use test_utils::{
     access_container, compare_access_container_entries, create_account_and_login, rand_app,
     register_app, run,
 };
-use tiny_keccak::sha3_256;
 
 #[cfg(feature = "use-mock-routing")]
 mod mock_routing {
@@ -584,7 +584,7 @@ fn app_authentication() {
         config::list_apps(client).map(|(_, apps)| apps)
     });
 
-    let app_config_key = sha3_256(app_id.as_bytes());
+    let app_config_key = safe_crypto::hash(app_id.as_bytes());
     let app_info = unwrap!(apps.get(&app_config_key));
 
     assert_eq!(app_info.info, app_exchange_info);

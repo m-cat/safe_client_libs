@@ -13,9 +13,9 @@ use config::{self, AppInfo, RevocationQueue};
 use futures::future::{self, Either, Loop};
 use futures::Future;
 use routing::{ClientError, EntryActions, User, Value};
-use rust_sodium::crypto::sign;
 use safe_core::recovery;
 use safe_core::{Client, CoreError, FutureExt, MDataInfo};
+use safe_crypto::{Error as CryptoError, PublicSignKey};
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -30,6 +30,7 @@ pub fn revoke_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
 
     config::get_app_revocation_queue(&client)
         .and_then(move |(version, queue)| {
+            println!("2");
             config::push_to_app_revocation_queue(
                 &client,
                 queue,
@@ -44,6 +45,7 @@ pub fn revoke_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
 /// Revoke all apps currently in the revocation queue.
 pub fn flush_app_revocation_queue(client: &AuthClient) -> Box<AuthFuture<()>> {
     let client = client.clone();
+    println!("3");
 
     config::get_app_revocation_queue(&client)
         .and_then(move |(version, queue)| {
@@ -69,6 +71,7 @@ fn flush_app_revocation_queue_impl(
 ) -> Box<AuthFuture<()>> {
     let client = client.clone();
     let moved_apps = Vec::new();
+    println!("5");
 
     future::loop_fn(
         (queue, version, moved_apps),
@@ -80,25 +83,34 @@ fn flush_app_revocation_queue_impl(
                 let f = revoke_single_app(&c2, &app_id)
                     .then(move |result| match result {
                         Ok(_) => {
+                            println!("11");
                             config::remove_from_app_revocation_queue(&c3, queue, version, &app_id)
                                 .map(|(version, queue)| (version, queue, moved_apps))
                                 .into_box()
                         }
-                        Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure)) => {
-                            // The app entry can't be decrypted. No way to revoke app, so just remove
-                            // it from the queue and return an error.
+                        Err(AuthError::CoreError(CoreError::CryptoError(
+                            CryptoError::DecryptVerify(e),
+                        ))) => {
+                            // The app entry can't be decrypted. No way to revoke app, so just
+                            // remove it from the queue and return an error.
+                            println!("12");
                             config::remove_from_app_revocation_queue(&c3, queue, version, &app_id)
-                                .and_then(|_| {
-                                    err!(AuthError::CoreError(CoreError::SymmetricDecipherFailure))
+                                .and_then(move |_| {
+                                    err!(AuthError::CoreError(CoreError::CryptoError(
+                                        CryptoError::DecryptVerify(e)
+                                    )))
                                 }).into_box()
                         }
                         Err(error) => {
+                            println!("9");
                             if moved_apps.contains(&app_id) {
                                 // If this app has already been moved to the back of the queue,
                                 // return the error.
+                                println!("10");
                                 err!(error)
                             } else {
                                 // Move the app to the end of the queue.
+                                println!("11");
                                 moved_apps.push(app_id.clone());
                                 config::repush_to_app_revocation_queue(&c3, queue, version, &app_id)
                                     .map(|(version, queue)| (version, queue, moved_apps))
@@ -119,6 +131,7 @@ fn flush_app_revocation_queue_impl(
 // Revoke access for a single app
 fn revoke_single_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
     trace!("Revoking app with ID {}...", app_id);
+    println!("7");
 
     let c2 = client.clone();
     let c3 = client.clone();
@@ -137,6 +150,7 @@ fn revoke_single_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
         .and_then(move |app| {
             access_container::fetch_entry(&c3, &app.info.id, app.keys.clone()).and_then(
                 move |(version, ac_entry)| {
+                    println!("{}", 16);
                     match ac_entry {
                         Some(ac_entry) => {
                             let containers: Containers = ac_entry
@@ -158,7 +172,8 @@ fn revoke_single_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<()>> {
 
 // Delete the app auth key from the Maid Manager - this prevents the app from
 // performing any more mutations.
-fn delete_app_auth_key(client: &AuthClient, key: sign::PublicKey) -> Box<AuthFuture<()>> {
+fn delete_app_auth_key(client: &AuthClient, key: PublicSignKey) -> Box<AuthFuture<()>> {
+    println!("{}", 14);
     let client = client.clone();
 
     client
@@ -182,6 +197,7 @@ fn clear_from_access_container_entry(
     ac_entry_version: u64,
     containers: Containers,
 ) -> Box<AuthFuture<()>> {
+    println!("{}", 17);
     let c2 = client.clone();
     let c3 = client.clone();
 
@@ -200,8 +216,9 @@ fn clear_from_access_container_entry(
 fn revoke_container_perms(
     client: &AuthClient,
     containers: &Containers,
-    sign_pk: sign::PublicKey,
+    sign_pk: PublicSignKey,
 ) -> Box<AuthFuture<()>> {
+    println!("18",);
     let reqs: Vec<_> = containers
         .values()
         .map(|mdata_info| {
@@ -231,6 +248,7 @@ fn reencrypt_containers_and_update_access_container(
     container_names: HashSet<String>,
     revoked_app: &AppInfo,
 ) -> Box<AuthFuture<()>> {
+    println!("{}", 19);
     // 1. Make sure to get the latest containers info from the root dir (as it
     //    could have been updated on the previous failed revocation)
     // 2. Generate new encryption keys for all the containers to be re-encrypted.
@@ -283,6 +301,7 @@ fn fetch_access_container_entries(
     ac_info: &MDataInfo,
     revoked_app_key: Vec<u8>,
 ) -> Box<AuthFuture<BTreeMap<Vec<u8>, Value>>> {
+    println!("21");
     client
         .list_mdata_entries(ac_info.name, ac_info.type_tag)
         .map_err(From::from)
@@ -301,6 +320,7 @@ fn update_access_container(
     container_names: HashSet<String>,
     mdata_info_action: MDataInfoAction,
 ) -> Box<AuthFuture<(MDataEntries, Containers)>> {
+    println!("22");
     let c2 = client.clone();
     let c3 = client.clone();
 
@@ -404,6 +424,7 @@ impl MDataInfoAction {
 // `MDataInfo`. Returns modified `containers` where the enc info regeneration is either
 // committed or aborted, depending on if the re-encryption succeeded or failed.
 fn reencrypt_containers(client: &AuthClient, containers: Containers) -> Box<AuthFuture<()>> {
+    println!("23");
     let c2 = client.clone();
 
     let fs = containers.into_iter().map(move |(_, mdata_info)| {
@@ -423,12 +444,14 @@ fn reencrypt_containers(client: &AuthClient, containers: Containers) -> Box<Auth
                     let new_content = reencrypt_entry_value(&mdata_info, &value.content)?;
 
                     if old_key == new_key {
+                        println!("{}", 26);
                         // The key is either not encrypted or the entry was already re-encrypted.
                         if value.content != new_content {
                             // The key is not encypted, but the content is.
                             actions = actions.update(new_key, new_content, value.entry_version + 1);
                         }
                     } else {
+                        println!("{}", 27);
                         // Delete the old entry with the old key and
                         // insert the re-encrypted entry with a new key
                         actions = actions.del(old_key, value.entry_version + 1).ins(
@@ -441,6 +464,7 @@ fn reencrypt_containers(client: &AuthClient, containers: Containers) -> Box<Auth
 
                 Ok((mdata_info, actions))
             }).and_then(move |(mdata_info, actions)| {
+                println!("{}", 28);
                 c3.mutate_mdata_entries(mdata_info.name, mdata_info.type_tag, actions.into())
             }).map_err(From::from)
     });
@@ -449,6 +473,7 @@ fn reencrypt_containers(client: &AuthClient, containers: Containers) -> Box<Auth
 }
 
 fn reencrypt_entry_key(mdata_info: &MDataInfo, cipher: &[u8]) -> Result<Vec<u8>, CoreError> {
+    println!("{}", 24);
     match decrypt(mdata_info, cipher)? {
         Some(plain) => mdata_info.enc_entry_key(&plain),
         None => Ok(cipher.to_vec()),
@@ -456,6 +481,7 @@ fn reencrypt_entry_key(mdata_info: &MDataInfo, cipher: &[u8]) -> Result<Vec<u8>,
 }
 
 fn reencrypt_entry_value(mdata_info: &MDataInfo, cipher: &[u8]) -> Result<Vec<u8>, CoreError> {
+    println!("{}", 25);
     match decrypt(mdata_info, cipher)? {
         Some(plain) => mdata_info.enc_entry_value(&plain),
         None => Ok(cipher.to_vec()),
@@ -463,6 +489,7 @@ fn reencrypt_entry_value(mdata_info: &MDataInfo, cipher: &[u8]) -> Result<Vec<u8
 }
 
 fn decrypt(mdata_info: &MDataInfo, cipher: &[u8]) -> Result<Option<Vec<u8>>, CoreError> {
+    println!("27");
     match mdata_info.decrypt(cipher) {
         Ok(plain) => Ok(Some(plain)),
         Err(CoreError::EncodeDecodeError(_)) => {

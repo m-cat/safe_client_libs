@@ -90,7 +90,14 @@ impl Account {
     fn derive_key(input: &[u8], user_salt: &[u8], output: &mut [u8]) -> Result<(), CoreError> {
         let salt = safe_crypto::hash(user_salt);
 
-        Ok(safe_crypto::derive_key_from_pw(input, &salt, None, output)?)
+        #[cfg(any(test, feature = "testing"))]
+        let work_factor = Some(1);
+        #[cfg(not(any(test, feature = "testing")))]
+        let work_factor = None;
+
+        safe_crypto::derive_key_from_pw(input, &salt, work_factor, output)?;
+
+        Ok(())
     }
 }
 

@@ -104,17 +104,23 @@ impl MDataInfo {
 
     /// Decrypt key or value of this mdata entry.
     pub fn decrypt(&self, cipher: &[u8]) -> Result<Vec<u8>, CoreError> {
+        println!("28");
         if let Some((ref key, _)) = self.new_enc_info {
+            println!("28.5");
             if let Ok(plain) = key.decrypt_bytes(cipher) {
                 return Ok(plain);
             }
         }
+        println!("29");
 
         let result = if let Some((ref key, _)) = self.enc_info {
-            key.decrypt_bytes(cipher).map_err(CoreError::from)?
+            println!("31");
+            key.decrypt_bytes(cipher)?
         } else {
+            println!("32");
             cipher.to_vec()
         };
+        println!("30");
 
         Ok(result)
     }

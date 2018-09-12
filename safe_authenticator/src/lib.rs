@@ -79,19 +79,18 @@ extern crate futures;
 extern crate log;
 extern crate lru_cache;
 extern crate maidsafe_utilities;
+#[cfg(any(test, feature = "testing"))]
+extern crate rand;
 extern crate routing;
+#[macro_use]
+extern crate safe_core;
+extern crate safe_crypto;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-extern crate rust_sodium;
-#[macro_use]
-extern crate safe_core;
-extern crate tiny_keccak;
 extern crate tokio_core;
 #[macro_use]
 extern crate unwrap;
-#[cfg(any(test, feature = "testing"))]
-extern crate rand;
 
 /// FFI routines
 pub mod ffi;

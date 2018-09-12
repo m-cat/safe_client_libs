@@ -25,25 +25,25 @@ pub const NULL_OBJECT_HANDLE: u64 = 0;
 /// which they will use to do RPC's.
 pub type ObjectHandle = u64;
 
-/// Disambiguating `ObjectHandle`
+/// Disambiguating `ObjectHandle`.
 pub type CipherOptHandle = ObjectHandle;
-/// Disambiguating `ObjectHandle`
+/// Disambiguating `ObjectHandle`.
 pub type EncryptPubKeyHandle = ObjectHandle;
-/// Disambiguating `ObjectHandle`
+/// Disambiguating `ObjectHandle`.
 pub type EncryptSecKeyHandle = ObjectHandle;
-/// Disambiguating `ObjectHandle`
+/// Disambiguating `ObjectHandle`.
 pub type MDataEntriesHandle = ObjectHandle;
-/// Disambiguating `ObjectHandle`
+/// Disambiguating `ObjectHandle`.
 pub type MDataEntryActionsHandle = ObjectHandle;
-/// Disambiguating `ObjectHandle`
+/// Disambiguating `ObjectHandle`.
 pub type MDataPermissionsHandle = ObjectHandle;
-/// Disambiguating `ObjectHandle`
+/// Disambiguating `ObjectHandle`.
 pub type SelfEncryptorReaderHandle = ObjectHandle;
-/// Disambiguating `ObjectHandle`
+/// Disambiguating `ObjectHandle`.
 pub type SelfEncryptorWriterHandle = ObjectHandle;
-/// Disambiguating `ObjectHandle`
+/// Disambiguating `ObjectHandle`.
 pub type SignPubKeyHandle = ObjectHandle;
-/// Disambiguating `ObjectHandle`
+/// Disambiguating `ObjectHandle`.
 pub type SignSecKeyHandle = ObjectHandle;
-/// Disambiguating `ObjectHandle`
+/// Disambiguating `ObjectHandle`.
 pub type FileContextHandle = ObjectHandle;

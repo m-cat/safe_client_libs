@@ -17,8 +17,6 @@ use ipc::decode_ipc_msg;
 use rand::{self, Rng};
 use revocation;
 use routing::User;
-use rust_sodium::crypto::sign;
-use safe_core::crypto::shared_secretbox;
 use safe_core::ipc::req::{container_perms_into_permission_set, ContainerPermissions};
 use safe_core::ipc::resp::AccessContainerEntry;
 use safe_core::ipc::{self, AppExchangeInfo, AuthGranted, AuthReq, IpcMsg, IpcReq};
@@ -28,6 +26,7 @@ use safe_core::utils::test_utils::setup_client_with_net_obs;
 use safe_core::MockRouting;
 use safe_core::{utils, NetworkEvent};
 use safe_core::{Client, FutureExt, MDataInfo};
+use safe_crypto::{PublicSignKey, SymmetricKey};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::mpsc;
@@ -247,7 +246,7 @@ pub fn fetch_file<S: Into<String>>(
 pub fn read_file(
     authenticator: &Authenticator,
     file: File,
-    encryption_key: Option<shared_secretbox::Key>,
+    encryption_key: Option<SymmetricKey>,
 ) -> Result<Vec<u8>, AuthError> {
     try_run(authenticator, move |client| {
         file_helper::read(client.clone(), &file, encryption_key)
@@ -276,7 +275,7 @@ pub fn write_file(
     authenticator: &Authenticator,
     file: File,
     mode: Mode,
-    encryption_key: Option<shared_secretbox::Key>,
+    encryption_key: Option<SymmetricKey>,
     content: Vec<u8>,
 ) -> Result<(), AuthError> {
     try_run(authenticator, move |client| {
@@ -334,7 +333,7 @@ pub fn get_container_from_authenticator_entry(
 /// Check that the given permission set is contained in the access container
 pub fn compare_access_container_entries(
     authenticator: &Authenticator,
-    app_sign_pk: sign::PublicKey,
+    app_sign_pk: PublicSignKey,
     mut access_container: AccessContainerEntry,
     expected: HashMap<String, ContainerPermissions>,
 ) {

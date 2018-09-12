@@ -16,7 +16,6 @@ use futures::future::{self, Either};
 use futures::Future;
 use maidsafe_utilities::serialisation::deserialise;
 use routing::{ClientError, User, XorName};
-use rust_sodium::crypto::sign;
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
 use safe_core::ipc::req::{
     container_perms_into_permission_set, ContainerPermissions, IpcReq, ShareMDataReq,
@@ -24,6 +23,7 @@ use safe_core::ipc::req::{
 use safe_core::ipc::resp::{AccessContainerEntry, IpcResp, UserMetadata, METADATA_KEY};
 use safe_core::ipc::{self, IpcError, IpcMsg};
 use safe_core::{recovery, Client, CoreError, FutureExt};
+use safe_crypto::PublicSignKey;
 use std::collections::HashMap;
 use std::ffi::CString;
 
@@ -102,7 +102,7 @@ pub fn decode_ipc_msg(
 pub fn update_container_perms(
     client: &AuthClient,
     permissions: HashMap<String, ContainerPermissions>,
-    sign_pk: sign::PublicKey,
+    sign_pk: PublicSignKey,
 ) -> Box<AuthFuture<AccessContainerEntry>> {
     let c2 = client.clone();
 

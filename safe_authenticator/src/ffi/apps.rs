@@ -22,7 +22,6 @@ use safe_core::ffi::ipc::resp::AppAccess;
 use safe_core::ipc::req::containers_into_vec;
 use safe_core::ipc::resp::{AccessContainerEntry, AppAccess as NativeAppAccess};
 use safe_core::ipc::{access_container_enc_key, IpcError};
-use safe_core::utils::symmetric_decrypt;
 use safe_core::{Client, FutureExt};
 use std::collections::HashMap;
 use std::os::raw::{c_char, c_void};
@@ -196,7 +195,7 @@ pub unsafe extern "C" fn auth_registered_apps(
                         };
 
                         if let Some(entry) = entry {
-                            let plaintext = symmetric_decrypt(&entry.content, &app.keys.enc_key)?;
+                            let plaintext = app.keys.enc_key.decrypt_bytes(&entry.content)?;
                             let app_access = deserialise::<AccessContainerEntry>(&plaintext)?;
 
                             let containers = containers_into_vec(

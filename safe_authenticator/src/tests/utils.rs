@@ -12,8 +12,6 @@ use ffi_utils::test_utils::{send_via_user_data, sender_as_user_data};
 use ffi_utils::{vec_clone_from_raw_parts, FfiResult, ReprC};
 use futures::Future;
 use routing::XorName;
-use rust_sodium::crypto::secretbox;
-use safe_core::crypto::shared_secretbox;
 use safe_core::ffi::ipc::req::{
     AuthReq as FfiAuthReq, ContainersReq as FfiContainersReq, ShareMDataReq as FfiShareMDataReq,
 };
@@ -22,6 +20,7 @@ use safe_core::ipc::req::ContainerPermissions;
 use safe_core::ipc::resp::UserMetadata;
 use safe_core::ipc::{self, AuthReq, ContainersReq, IpcMsg, IpcReq, Permission, ShareMDataReq};
 use safe_core::FutureExt;
+use safe_crypto::{Nonce, SymmetricKey};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
@@ -66,7 +65,7 @@ pub fn corrupt_container(client: &AuthClient, container_id: &str) -> Box<AuthFut
         .and_then(move |(version, mut ac_entry)| {
             {
                 let entry = unwrap!(ac_entry.get_mut(&container_id));
-                entry.enc_info = Some((shared_secretbox::gen_key(), secretbox::gen_nonce()));
+                entry.enc_info = Some((SymmetricKey::new(), Nonce::new()));
             }
             // Update the old entry.
             put_authenticator_entry(&c2, &ac_entry, version + 1)

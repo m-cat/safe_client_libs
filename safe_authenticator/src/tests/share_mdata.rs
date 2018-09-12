@@ -16,11 +16,11 @@ use futures::Future;
 use maidsafe_utilities::serialisation::serialise;
 use rand;
 use routing::{Action, MutableData, PermissionSet, User, Value};
-use rust_sodium::crypto::sign;
 use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::resp::{AppAccess, UserMetadata, METADATA_KEY};
 use safe_core::ipc::{self, AuthReq, IpcMsg, IpcReq, ShareMData, ShareMDataReq};
 use safe_core::Client;
+use safe_crypto::{self, PublicSignKey};
 use std::collections::BTreeMap;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
@@ -248,7 +248,7 @@ fn share_some_mdatas_with_ownership_error() {
         ok!(unwrap!(client.public_signing_key()))
     });
 
-    let (someone_else, _) = sign::gen_keypair();
+    let (someone_else, _) = safe_crypto::gen_sign_keypair();
 
     let ownerss = vec![
         btree_set![user /* , someone_else */], // currently can't handle having multiple owners
@@ -351,7 +351,7 @@ fn auth_apps_accessing_mdatas() {
     let perms = PermissionSet::new().allow(Action::Insert);
     let mut mdatas = Vec::new();
     let mut metadatas = Vec::new();
-    let unregistered = sign::gen_keypair().0;
+    let unregistered = safe_crypto::gen_sign_keypair().0;
 
     for i in 0..(NUM_MDATAS + NUM_MDATAS_NO_META) {
         let metadata = if i < NUM_MDATAS {
@@ -404,7 +404,7 @@ fn auth_apps_accessing_mdatas() {
 
     const NUM_APPS: usize = 3;
 
-    let mut apps: Vec<(sign::PublicKey, AppExchangeInfo)> = Vec::with_capacity(NUM_APPS);
+    let mut apps: Vec<(PublicSignKey, AppExchangeInfo)> = Vec::with_capacity(NUM_APPS);
     for _ in 0..NUM_APPS {
         // Create an app and register it.
         let app_id = rand_app();

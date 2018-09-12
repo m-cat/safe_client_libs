@@ -217,7 +217,7 @@ pub fn access_container_entry_into_repr_c(
     })
 }
 
-/// Convert FFI representation of `AccessContainerEntry` to native rust representation by cloning.
+/// Convert FFI representation of `AccessContainerEntry` to native Rust representation by cloning.
 pub unsafe fn access_container_entry_clone_from_repr_c(
     entry: *const ffi::AccessContainerEntry,
 ) -> Result<AccessContainerEntry, IpcError> {
@@ -302,6 +302,7 @@ pub fn access_container_enc_key(
     access_container_nonce: &Nonce,
 ) -> Result<Vec<u8>, IpcError> {
     let key = app_id.as_bytes();
+
     let mut key_pt = key.to_vec();
     let ac_nonce_bytes = access_container_nonce.clone().into_bytes();
     key_pt.extend_from_slice(&ac_nonce_bytes);

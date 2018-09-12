@@ -15,6 +15,7 @@ use routing::{AccountInfo, EntryActions, User};
 use safe_core::ipc::{AuthReq, Permission};
 use safe_core::nfs::NfsError;
 use safe_core::{app_container_name, Client, CoreError, MDataInfo};
+use safe_crypto::Error as CryptoError;
 use std::collections::HashMap;
 use test_utils::{
     access_container, create_account_and_login, create_authenticator, create_file, fetch_file,
@@ -41,12 +42,12 @@ mod mock_routing {
     use safe_core::utils::test_utils::Synchronizer;
     use safe_core::MockRouting;
     use safe_core::{Client, FutureExt};
+    use safe_crypto;
     use std::collections::HashMap;
     use std::iter;
     use std::sync::{Arc, Barrier};
     use std::thread;
     use test_utils::{get_container_from_authenticator_entry, register_rand_app, try_revoke};
-    use tiny_keccak::sha3_256;
     use AuthFuture;
 
     // Test operation recovery for app revocation
@@ -169,11 +170,11 @@ mod mock_routing {
 
         // Try to access both files using previous keys - they shouldn't be accessible
         match fetch_file(&auth, docs_md, "test.doc") {
-            Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
+            Err(AuthError::NfsError(NfsError::CoreError(CoreError::CryptoError(..)))) => (),
             x => panic!("Unexpected {:?}", x),
         }
         match fetch_file(&auth, videos_md, "video.mp4") {
-            Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
+            Err(AuthError::NfsError(NfsError::CoreError(CoreError::CryptoError(..)))) => (),
             x => panic!("Unexpected {:?}", x),
         }
 
@@ -580,7 +581,7 @@ mod mock_routing {
                 let auth_keys = c0.list_auth_keys_and_version().map_err(AuthError::from);
                 let state = app_state(&c0, &apps, &app_id);
 
-                let app_hash = sha3_256(app_id.as_bytes());
+                let app_hash = safe_crypto::hash(app_id.as_bytes());
                 let app_key = unwrap!(apps.get(&app_hash)).keys.sign_pk;
 
                 auth_keys
@@ -647,7 +648,7 @@ mod mock_routing {
             .then(move |res| {
                 let (_, mut apps) = unwrap!(res);
 
-                let app_hash = sha3_256(app_id.as_bytes());
+                let app_hash = safe_crypto::hash(app_id.as_bytes());
                 let app_keys = unwrap!(apps.remove(&app_hash)).keys;
 
                 c0.list_auth_keys_and_version()
@@ -787,12 +788,12 @@ fn app_revocation() {
 
     // The first app can no longer access the files.
     match fetch_file(&authenticator, videos_md1.clone(), "1.mp4") {
-        Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
+        Err(AuthError::NfsError(NfsError::CoreError(CoreError::CryptoError(..)))) => (),
         x => panic!("Unexpected {:?}", x),
     }
 
     match fetch_file(&authenticator, videos_md1.clone(), "2.mp4") {
-        Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
+        Err(AuthError::NfsError(NfsError::CoreError(CoreError::CryptoError(..)))) => (),
         x => panic!("Unexpected {:?}", x),
     }
 
@@ -823,12 +824,12 @@ fn app_revocation() {
     assert_eq!(count_mdata_entries(&authenticator, videos_md1.clone()), 6);
 
     match fetch_file(&authenticator, videos_md1.clone(), "1.mp4") {
-        Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
+        Err(AuthError::NfsError(NfsError::CoreError(CoreError::CryptoError(..)))) => (),
         x => panic!("Unexpected {:?}", x),
     }
 
     match fetch_file(&authenticator, videos_md1.clone(), "2.mp4") {
-        Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
+        Err(AuthError::NfsError(NfsError::CoreError(CoreError::CryptoError(..)))) => (),
         x => panic!("Unexpected {:?}", x),
     }
 
@@ -841,7 +842,7 @@ fn app_revocation() {
     revoke(&authenticator, &app_id2);
 
     match fetch_file(&authenticator, videos_md2.clone(), "1.mp4") {
-        Err(AuthError::NfsError(NfsError::CoreError(CoreError::EncodeDecodeError(..)))) => (),
+        Err(AuthError::NfsError(NfsError::CoreError(CoreError::CryptoError(..)))) => (),
         x => panic!("Unexpected {:?}", x),
     }
 
@@ -954,7 +955,7 @@ fn revocation_symmetric_decipher_failure() {
     // Try to revoke app3.
     match try_revoke(&authenticator, &app_id3) {
         Ok(_) => panic!("Revocation succeeded with corrupted encryption key!"),
-        Err(AuthError::CoreError(CoreError::SymmetricDecipherFailure)) => (),
+        Err(AuthError::CoreError(CoreError::CryptoError(CryptoError::DecryptVerify(_)))) => (),
         Err(x) => panic!("An unexpected error occurred: {:?}", x),
     }
 
@@ -1070,8 +1071,10 @@ fn revocation_with_unencrypted_container_entries() {
         f0.join(f1).map(|_| ()).map_err(AuthError::from)
     });
 
+    println!("1");
     // Revoke the app.
     revoke(&auth, &app_id);
+    println!("end");
 
     // Verify that the unencrypted entries remain unencrypted after the revocation.
     run(&auth, move |client| {

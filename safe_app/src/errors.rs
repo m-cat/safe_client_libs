@@ -16,6 +16,7 @@ use routing::ClientError;
 use safe_core::ipc::IpcError;
 use safe_core::nfs::NfsError;
 use safe_core::{CoreError, SelfEncryptionStorageError};
+use safe_crypto::Error as CryptoError;
 use self_encryption::SelfEncryptionError;
 use std::error::Error;
 use std::ffi::NulError;
@@ -28,8 +29,8 @@ use std::sync::mpsc::{RecvError, RecvTimeoutError};
 mod codes {
     // Core errors
     pub const ERR_ENCODE_DECODE_ERROR: i32 = -1;
-    pub const ERR_ASYMMETRIC_DECIPHER_FAILURE: i32 = -2;
-    pub const ERR_SYMMETRIC_DECIPHER_FAILURE: i32 = -3;
+    pub const ERR_CRYPTO_ERROR: i32 = -2;
+
     pub const ERR_RECEIVED_UNEXPECTED_DATA: i32 = -4;
     pub const ERR_RECEIVED_UNEXPECTED_EVENT: i32 = -5;
     pub const ERR_VERSION_CACHE_MISS: i32 = -6;
@@ -38,8 +39,7 @@ mod codes {
     pub const ERR_OPERATION_FORBIDDEN: i32 = -9;
     pub const ERR_ROUTING_ERROR: i32 = -10;
     pub const ERR_ROUTING_INTERFACE_ERROR: i32 = -11;
-    pub const ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH: i32 = -12;
-    pub const ERR_UNSUCCESSFUL_PW_HASH: i32 = -13;
+
     pub const ERR_OPERATION_ABORTED: i32 = -14;
     pub const ERR_MPID_MESSAGING_ERROR: i32 = -15;
     pub const ERR_SELF_ENCRYPTION: i32 = -16;
@@ -100,6 +100,7 @@ mod codes {
     pub const ERR_INVALID_FILE_MODE: i32 = -1016;
     pub const ERR_INVALID_SIGN_SEC_KEY_HANDLE: i32 = -1017;
     pub const ERR_UNREGISTERED_CLIENT_ACCESS: i32 = -1018;
+    pub const ERR_INVALID_SIGNATURE_HANDLE: i32 = -1019;
 
     pub const ERR_UNEXPECTED: i32 = -2000;
 }
@@ -145,6 +146,8 @@ pub enum AppError {
     InvalidSignSecKeyHandle,
     /// Invalid file writer handle.
     InvalidFileContextHandle,
+    /// Invalid signature handle.
+    InvalidSignatureHandle,
 
     /// Error while self-encrypting data.
     SelfEncryption(SelfEncryptionError<SelfEncryptionStorageError>),
@@ -153,6 +156,8 @@ pub enum AppError {
     InvalidSelfEncryptorReadOffsets,
     /// Input/output error.
     IoError(IoError),
+    /// Crypto error.
+    CryptoError(CryptoError),
     /// Unexpected error.
     Unexpected(String),
 }
@@ -200,6 +205,7 @@ impl Display for AppError {
             }
             AppError::InvalidEncryptSecKeyHandle => write!(formatter, "Invalid secret key handle"),
             AppError::InvalidFileContextHandle => write!(formatter, "Invalid file context handle"),
+            AppError::InvalidSignatureHandle => write!(formatter, "Invalid signature handle"),
             AppError::SelfEncryption(ref error) => {
                 write!(formatter, "Self-encryption error: {}", error)
             }
@@ -211,6 +217,7 @@ impl Display for AppError {
                  probably caused an overflow."
             ),
             AppError::IoError(ref error) => write!(formatter, "I/O error: {}", error),
+            AppError::CryptoError(ref error) => write!(formatter, "Crypto error: {}", error),
             AppError::Unexpected(ref error) => {
                 write!(formatter, "Unexpected (probably a logic error): {}", error)
             }
@@ -219,75 +226,81 @@ impl Display for AppError {
 }
 
 impl From<CoreError> for AppError {
-    fn from(err: CoreError) -> Self {
-        match err {
+    fn from(error: CoreError) -> Self {
+        match error {
             CoreError::Unexpected(reason) => AppError::Unexpected(reason),
-            _ => AppError::CoreError(err),
+            _ => AppError::CoreError(error),
         }
     }
 }
 
 impl From<IpcError> for AppError {
-    fn from(err: IpcError) -> Self {
-        match err {
+    fn from(error: IpcError) -> Self {
+        match error {
             IpcError::EncodeDecodeError => AppError::EncodeDecodeError,
             IpcError::Unexpected(reason) => AppError::Unexpected(reason),
-            _ => AppError::IpcError(err),
+            _ => AppError::IpcError(error),
         }
     }
 }
 
 impl From<ConfigFileHandlerError> for AppError {
-    fn from(err: ConfigFileHandlerError) -> Self {
-        AppError::Unexpected(err.to_string())
+    fn from(error: ConfigFileHandlerError) -> Self {
+        AppError::Unexpected(error.to_string())
     }
 }
 
 impl From<NfsError> for AppError {
-    fn from(err: NfsError) -> Self {
-        match err {
-            NfsError::CoreError(err) => AppError::CoreError(err),
+    fn from(error: NfsError) -> Self {
+        match error {
+            NfsError::CoreError(error) => AppError::CoreError(error),
             NfsError::EncodeDecodeError(_) => AppError::EncodeDecodeError,
-            NfsError::SelfEncryption(err) => AppError::SelfEncryption(err),
+            NfsError::SelfEncryption(error) => AppError::SelfEncryption(error),
             NfsError::Unexpected(reason) => AppError::Unexpected(reason),
-            _ => AppError::NfsError(err),
+            _ => AppError::NfsError(error),
         }
     }
 }
 
 impl From<SerialisationError> for AppError {
-    fn from(_err: SerialisationError) -> Self {
+    fn from(_error: SerialisationError) -> Self {
         AppError::EncodeDecodeError
     }
 }
 
 impl From<Utf8Error> for AppError {
-    fn from(_err: Utf8Error) -> Self {
+    fn from(_error: Utf8Error) -> Self {
         AppError::EncodeDecodeError
     }
 }
 
 impl From<StringError> for AppError {
-    fn from(_err: StringError) -> Self {
+    fn from(_error: StringError) -> Self {
         AppError::EncodeDecodeError
     }
 }
 
 impl From<SelfEncryptionError<SelfEncryptionStorageError>> for AppError {
-    fn from(err: SelfEncryptionError<SelfEncryptionStorageError>) -> Self {
-        AppError::SelfEncryption(err)
+    fn from(error: SelfEncryptionError<SelfEncryptionStorageError>) -> Self {
+        AppError::SelfEncryption(error)
     }
 }
 
 impl From<IoError> for AppError {
-    fn from(err: IoError) -> Self {
-        AppError::IoError(err)
+    fn from(error: IoError) -> Self {
+        AppError::IoError(error)
     }
 }
 
 impl<'a> From<&'a str> for AppError {
     fn from(s: &'a str) -> Self {
         AppError::Unexpected(s.to_string())
+    }
+}
+
+impl From<CryptoError> for AppError {
+    fn from(error: CryptoError) -> Self {
+        AppError::CryptoError(error)
     }
 }
 
@@ -298,35 +311,34 @@ impl From<String> for AppError {
 }
 
 impl<T: 'static> From<SendError<T>> for AppError {
-    fn from(err: SendError<T>) -> Self {
-        AppError::from(err.description())
+    fn from(error: SendError<T>) -> Self {
+        AppError::from(error.description())
     }
 }
 
 impl From<NulError> for AppError {
-    fn from(err: NulError) -> Self {
-        AppError::from(err.description())
+    fn from(error: NulError) -> Self {
+        AppError::from(error.description())
     }
 }
 
 impl From<RecvError> for AppError {
-    fn from(err: RecvError) -> Self {
-        AppError::from(err.description())
+    fn from(error: RecvError) -> Self {
+        AppError::from(error.description())
     }
 }
 
 impl From<RecvTimeoutError> for AppError {
-    fn from(_err: RecvTimeoutError) -> Self {
-        // TODO: change this to err.description() once that lands in stable.
-        AppError::from("mpsc receive error")
+    fn from(error: RecvTimeoutError) -> Self {
+        AppError::from(error.description())
     }
 }
 
 impl ErrorCode for AppError {
     fn error_code(&self) -> i32 {
         match *self {
-            AppError::CoreError(ref err) => core_error_code(err),
-            AppError::IpcError(ref err) => match *err {
+            AppError::CoreError(ref error) => core_error_code(error),
+            AppError::IpcError(ref error) => match *error {
                 IpcError::AuthDenied => ERR_AUTH_DENIED,
                 IpcError::ContainersDenied => ERR_CONTAINERS_DENIED,
                 IpcError::InvalidMsg => ERR_INVALID_MSG,
@@ -338,8 +350,8 @@ impl ErrorCode for AppError {
                 IpcError::ShareMDataDenied => ERR_SHARE_MDATA_DENIED,
                 IpcError::InvalidOwner(..) => ERR_INVALID_OWNER,
             },
-            AppError::NfsError(ref err) => match *err {
-                NfsError::CoreError(ref err) => core_error_code(err),
+            AppError::NfsError(ref error) => match *error {
+                NfsError::CoreError(ref error) => core_error_code(error),
                 NfsError::FileExists => ERR_FILE_EXISTS,
                 NfsError::FileNotFound => ERR_FILE_NOT_FOUND,
                 NfsError::InvalidRange => ERR_INVALID_RANGE,
@@ -360,21 +372,21 @@ impl ErrorCode for AppError {
             AppError::InvalidSignSecKeyHandle => ERR_INVALID_SIGN_SEC_KEY_HANDLE,
             AppError::InvalidEncryptSecKeyHandle => ERR_INVALID_ENCRYPT_SEC_KEY_HANDLE,
             AppError::InvalidFileContextHandle => ERR_INVALID_FILE_CONTEXT_HANDLE,
+            AppError::InvalidSignatureHandle => ERR_INVALID_SIGNATURE_HANDLE,
             AppError::InvalidFileMode => ERR_INVALID_FILE_MODE,
             AppError::UnregisteredClientAccess => ERR_UNREGISTERED_CLIENT_ACCESS,
             AppError::SelfEncryption(_) => ERR_SELF_ENCRYPTION,
             AppError::InvalidSelfEncryptorReadOffsets => ERR_INVALID_SELF_ENCRYPTOR_READ_OFFSETS,
             AppError::IoError(_) => ERR_IO_ERROR,
+            AppError::CryptoError(_) => ERR_CRYPTO_ERROR,
             AppError::Unexpected(_) => ERR_UNEXPECTED,
         }
     }
 }
 
-fn core_error_code(err: &CoreError) -> i32 {
-    match *err {
+fn core_error_code(error: &CoreError) -> i32 {
+    match *error {
         CoreError::EncodeDecodeError(_) => ERR_ENCODE_DECODE_ERROR,
-        CoreError::AsymmetricDecipherFailure => ERR_ASYMMETRIC_DECIPHER_FAILURE,
-        CoreError::SymmetricDecipherFailure => ERR_SYMMETRIC_DECIPHER_FAILURE,
         CoreError::ReceivedUnexpectedData => ERR_RECEIVED_UNEXPECTED_DATA,
         CoreError::ReceivedUnexpectedEvent => ERR_RECEIVED_UNEXPECTED_EVENT,
         CoreError::VersionCacheMiss => ERR_VERSION_CACHE_MISS,
@@ -383,7 +395,7 @@ fn core_error_code(err: &CoreError) -> i32 {
         CoreError::OperationForbidden => ERR_OPERATION_FORBIDDEN,
         CoreError::RoutingError(_) => ERR_ROUTING_ERROR,
         CoreError::RoutingInterfaceError(_) => ERR_ROUTING_INTERFACE_ERROR,
-        CoreError::RoutingClientError(ref err) => match *err {
+        CoreError::RoutingClientError(ref error) => match *error {
             ClientError::AccessDenied => ERR_ACCESS_DENIED,
             ClientError::NoSuchAccount => ERR_NO_SUCH_ACCOUNT,
             ClientError::AccountExists => ERR_ACCOUNT_EXISTS,
@@ -403,14 +415,13 @@ fn core_error_code(err: &CoreError) -> i32 {
             ClientError::InvalidInvitation => ERR_INVALID_INVITATION,
             ClientError::InvitationAlreadyClaimed => ERR_INVITATION_ALREADY_CLAIMED,
         },
-        CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
-        CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,
         CoreError::OperationAborted => ERR_OPERATION_ABORTED,
         CoreError::MpidMessagingError(_) => ERR_MPID_MESSAGING_ERROR,
         CoreError::SelfEncryption(_) => ERR_SELF_ENCRYPTION,
         CoreError::RequestTimeout => ERR_REQUEST_TIMEOUT,
         CoreError::ConfigError(_) => ERR_CONFIG_FILE,
         CoreError::IoError(_) => ERR_IO,
+        CoreError::CryptoError(_) => ERR_CRYPTO_ERROR,
         CoreError::Unexpected(_) => ERR_UNEXPECTED,
     }
 }

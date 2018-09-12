@@ -16,9 +16,8 @@ use client::AppClient;
 use ffi::nfs::FileContext;
 use ffi::object_cache::*;
 use routing::{EntryAction, PermissionSet, User, Value};
-use rust_sodium::crypto::{box_, sign};
-use safe_core::crypto::{shared_box, shared_sign};
 use safe_core::SelfEncryptionStorage;
+use safe_crypto::{PublicEncryptKey, PublicSignKey, SecretEncryptKey, SecretSignKey};
 use self_encryption::{SelfEncryptor, SequentialEncryptor};
 use std::cell::{Cell, RefCell, RefMut};
 use std::collections::{BTreeMap, HashMap};
@@ -27,15 +26,15 @@ use std::collections::{BTreeMap, HashMap};
 pub struct ObjectCache {
     handle_gen: HandleGenerator,
     cipher_opt: Store<CipherOpt>,
-    encrypt_key: Store<box_::PublicKey>,
-    secret_key: Store<shared_box::SecretKey>,
+    encrypt_key: Store<PublicEncryptKey>,
+    secret_key: Store<SecretEncryptKey>,
     mdata_entries: Store<BTreeMap<Vec<u8>, Value>>,
     mdata_entry_actions: Store<BTreeMap<Vec<u8>, EntryAction>>,
     mdata_permissions: Store<BTreeMap<User, PermissionSet>>,
     se_reader: Store<SelfEncryptor<SelfEncryptionStorage<AppClient>>>,
     se_writer: Store<SequentialEncryptor<SelfEncryptionStorage<AppClient>>>,
-    pub_sign_key: Store<sign::PublicKey>,
-    sec_sign_key: Store<shared_sign::SecretKey>,
+    pub_sign_key: Store<PublicSignKey>,
+    sec_sign_key: Store<SecretSignKey>,
     file: Store<FileContext>,
 }
 
@@ -109,7 +108,7 @@ impl_cache!(
 );
 impl_cache!(
     encrypt_key,
-    box_::PublicKey,
+    PublicEncryptKey,
     EncryptPubKeyHandle,
     InvalidEncryptPubKeyHandle,
     get_encrypt_key,
@@ -118,7 +117,7 @@ impl_cache!(
 );
 impl_cache!(
     secret_key,
-    shared_box::SecretKey,
+    SecretEncryptKey,
     EncryptSecKeyHandle,
     InvalidEncryptSecKeyHandle,
     get_secret_key,
@@ -170,7 +169,7 @@ impl_cache!(
 );
 impl_cache!(
     pub_sign_key,
-    sign::PublicKey,
+    PublicSignKey,
     SignPubKeyHandle,
     InvalidSignPubKeyHandle,
     get_pub_sign_key,
@@ -179,7 +178,7 @@ impl_cache!(
 );
 impl_cache!(
     sec_sign_key,
-    shared_sign::SecretKey,
+    SecretSignKey,
     SignSecKeyHandle,
     InvalidSignSecKeyHandle,
     get_sec_sign_key,
@@ -258,13 +257,13 @@ impl<V> Store<V> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_sodium::crypto::sign;
+    use safe_crypto;
 
     // Test resetting the object cache.
     #[test]
     fn reset() {
         let object_cache = ObjectCache::new();
-        let (pk, _) = sign::gen_keypair();
+        let (pk, _) = safe_crypto::gen_sign_keypair();
 
         let handle = object_cache.insert_pub_sign_key(pk);
         assert!(object_cache.get_pub_sign_key(handle).is_ok());

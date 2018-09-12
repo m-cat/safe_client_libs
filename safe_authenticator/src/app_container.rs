@@ -12,8 +12,8 @@ use access_container;
 use client::AuthClient;
 use futures::Future;
 use routing::{Action, EntryActions, PermissionSet, User};
-use rust_sodium::crypto::sign;
 use safe_core::{app_container_name, nfs, Client, FutureExt, MDataInfo, DIR_TAG};
+use safe_crypto::PublicSignKey;
 use {AuthError, AuthFuture};
 
 /// Returns an app's dedicated container if available and stored in the access container,
@@ -32,7 +32,7 @@ pub fn fetch(client: &AuthClient, app_id: &str) -> Box<AuthFuture<Option<MDataIn
 pub fn fetch_or_create(
     client: &AuthClient,
     app_id: &str,
-    app_sign_pk: sign::PublicKey,
+    app_sign_pk: PublicSignKey,
 ) -> Box<AuthFuture<MDataInfo>> {
     let c2 = client.clone();
     let c3 = client.clone();
@@ -130,7 +130,7 @@ pub fn remove(client: AuthClient, app_id: &str) -> Box<AuthFuture<bool>> {
 }
 
 // Creates a new app's dedicated container
-fn create(client: &AuthClient, app_sign_pk: sign::PublicKey) -> Box<AuthFuture<MDataInfo>> {
+fn create(client: &AuthClient, app_sign_pk: PublicSignKey) -> Box<AuthFuture<MDataInfo>> {
     let dir = fry!(MDataInfo::random_private(DIR_TAG).map_err(AuthError::from));
     nfs::create_dir(
         client,

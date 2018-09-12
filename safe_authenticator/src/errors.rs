@@ -17,6 +17,7 @@ use routing::ClientError;
 use safe_core::ipc::IpcError;
 use safe_core::nfs::NfsError;
 use safe_core::CoreError;
+use safe_crypto::Error as CryptoError;
 use std::error::Error;
 use std::ffi::NulError;
 use std::fmt::{self, Display, Formatter};
@@ -28,8 +29,8 @@ use std::sync::mpsc::RecvError;
 mod codes {
     // Core errors
     pub const ERR_ENCODE_DECODE_ERROR: i32 = -1;
-    pub const ERR_ASYMMETRIC_DECIPHER_FAILURE: i32 = -2;
-    pub const ERR_SYMMETRIC_DECIPHER_FAILURE: i32 = -3;
+    pub const ERR_CRYPTO_ERROR: i32 = -2;
+
     pub const ERR_RECEIVED_UNEXPECTED_DATA: i32 = -4;
     pub const ERR_RECEIVED_UNEXPECTED_EVENT: i32 = -5;
     pub const ERR_VERSION_CACHE_MISS: i32 = -6;
@@ -38,8 +39,7 @@ mod codes {
     pub const ERR_OPERATION_FORBIDDEN: i32 = -9;
     pub const ERR_ROUTING_ERROR: i32 = -10;
     pub const ERR_ROUTING_INTERFACE_ERROR: i32 = -11;
-    pub const ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH: i32 = -12;
-    pub const ERR_UNSUCCESSFUL_PW_HASH: i32 = -13;
+
     pub const ERR_OPERATION_ABORTED: i32 = -14;
     pub const ERR_MPID_MESSAGING_ERROR: i32 = -15;
     pub const ERR_SELF_ENCRYPTION: i32 = -16;
@@ -109,6 +109,8 @@ pub enum AuthError {
     AccountContainersCreation(String),
     /// Failure due to the attempted creation of an invalid container.
     NoSuchContainer(String),
+    /// Cryptography error.
+    CryptoError(CryptoError),
 }
 
 impl Display for AuthError {
@@ -130,6 +132,7 @@ impl Display for AuthError {
             AuthError::NoSuchContainer(ref name) => {
                 write!(formatter, "'{}' not found in the access container", name)
             }
+            AuthError::CryptoError(ref error) => write!(formatter, "Crypto error: {}", error),
         }
     }
 }
@@ -145,86 +148,92 @@ impl Into<IpcError> for AuthError {
 }
 
 impl<T: 'static> From<SendError<T>> for AuthError {
-    fn from(error: SendError<T>) -> AuthError {
+    fn from(error: SendError<T>) -> Self {
         AuthError::Unexpected(error.description().to_owned())
     }
 }
 
 impl From<ConfigFileHandlerError> for AuthError {
-    fn from(error: ConfigFileHandlerError) -> AuthError {
+    fn from(error: ConfigFileHandlerError) -> Self {
         AuthError::from(error.to_string())
     }
 }
 
 impl From<CoreError> for AuthError {
-    fn from(error: CoreError) -> AuthError {
+    fn from(error: CoreError) -> Self {
         AuthError::CoreError(error)
     }
 }
 
 impl From<IpcError> for AuthError {
-    fn from(error: IpcError) -> AuthError {
+    fn from(error: IpcError) -> Self {
         AuthError::IpcError(error)
     }
 }
 
 impl From<RecvError> for AuthError {
-    fn from(error: RecvError) -> AuthError {
+    fn from(error: RecvError) -> Self {
         AuthError::from(error.description())
     }
 }
 
 impl From<NulError> for AuthError {
-    fn from(error: NulError) -> AuthError {
+    fn from(error: NulError) -> Self {
         AuthError::from(error.description())
     }
 }
 
 impl From<IoError> for AuthError {
-    fn from(error: IoError) -> AuthError {
+    fn from(error: IoError) -> Self {
         AuthError::IoError(error)
     }
 }
 
 impl<'a> From<&'a str> for AuthError {
-    fn from(error: &'a str) -> AuthError {
+    fn from(error: &'a str) -> Self {
         AuthError::Unexpected(error.to_owned())
     }
 }
 
 impl From<String> for AuthError {
-    fn from(error: String) -> AuthError {
+    fn from(error: String) -> Self {
         AuthError::Unexpected(error)
     }
 }
 
 impl From<NfsError> for AuthError {
-    fn from(error: NfsError) -> AuthError {
+    fn from(error: NfsError) -> Self {
         AuthError::NfsError(error)
     }
 }
 
 impl From<SerialisationError> for AuthError {
-    fn from(_err: SerialisationError) -> AuthError {
+    fn from(_error: SerialisationError) -> Self {
         AuthError::EncodeDecodeError
     }
 }
 
 impl From<Utf8Error> for AuthError {
-    fn from(_err: Utf8Error) -> Self {
+    fn from(_error: Utf8Error) -> Self {
         AuthError::EncodeDecodeError
     }
 }
 
 impl From<FromUtf8Error> for AuthError {
-    fn from(_err: FromUtf8Error) -> Self {
+    fn from(_error: FromUtf8Error) -> Self {
         AuthError::EncodeDecodeError
     }
 }
 
 impl From<StringError> for AuthError {
-    fn from(_err: StringError) -> Self {
+    fn from(_error: StringError) -> Self {
         AuthError::EncodeDecodeError
+    }
+}
+
+impl From<CryptoError> for AuthError {
+    fn from(error: CryptoError) -> Self {
+        AuthError::CryptoError(error)
     }
 }
 
@@ -257,6 +266,7 @@ impl ErrorCode for AuthError {
             AuthError::IoError(_) => ERR_IO_ERROR,
             AuthError::AccountContainersCreation(_) => ERR_ACCOUNT_CONTAINERS_CREATION,
             AuthError::NoSuchContainer(_) => ERR_NO_SUCH_CONTAINER,
+            AuthError::CryptoError(_) => ERR_CRYPTO_ERROR,
             AuthError::Unexpected(_) => ERR_UNEXPECTED,
         }
     }
@@ -265,8 +275,7 @@ impl ErrorCode for AuthError {
 fn core_error_code(err: &CoreError) -> i32 {
     match *err {
         CoreError::EncodeDecodeError(_) => ERR_ENCODE_DECODE_ERROR,
-        CoreError::AsymmetricDecipherFailure => ERR_ASYMMETRIC_DECIPHER_FAILURE,
-        CoreError::SymmetricDecipherFailure => ERR_SYMMETRIC_DECIPHER_FAILURE,
+        CoreError::CryptoError(_) => ERR_CRYPTO_ERROR,
         CoreError::ReceivedUnexpectedData => ERR_RECEIVED_UNEXPECTED_DATA,
         CoreError::ReceivedUnexpectedEvent => ERR_RECEIVED_UNEXPECTED_EVENT,
         CoreError::VersionCacheMiss => ERR_VERSION_CACHE_MISS,
@@ -295,8 +304,6 @@ fn core_error_code(err: &CoreError) -> i32 {
             ClientError::InvalidInvitation => ERR_INVALID_INVITATION,
             ClientError::InvitationAlreadyClaimed => ERR_INVITATION_ALREADY_CLAIMED,
         },
-        CoreError::UnsupportedSaltSizeForPwHash => ERR_UNSUPPORTED_SALT_SIZE_FOR_PW_HASH,
-        CoreError::UnsuccessfulPwHash => ERR_UNSUCCESSFUL_PW_HASH,
         CoreError::OperationAborted => ERR_OPERATION_ABORTED,
         CoreError::MpidMessagingError(_) => ERR_MPID_MESSAGING_ERROR,
         CoreError::SelfEncryption(_) => ERR_SELF_ENCRYPTION,

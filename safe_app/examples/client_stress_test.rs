@@ -72,23 +72,27 @@ extern crate clap;
 extern crate futures;
 extern crate maidsafe_utilities;
 extern crate rand;
-extern crate rust_sodium;
-#[macro_use]
-extern crate safe_core;
 extern crate safe_app;
 extern crate safe_authenticator;
+#[macro_use]
+extern crate safe_core;
+extern crate safe_crypto;
 #[macro_use]
 extern crate unwrap;
 
 use clap::{App, Arg};
 use futures::Future;
 use rand::{Rng, SeedableRng};
-use rust_sodium::crypto::sign::PublicKey;
 use safe_app::{Client, CoreError, CoreFuture, FutureExt, ImmutableData, MutableData};
 use safe_authenticator::{AuthClient, Authenticator};
+use safe_crypto::PublicSignKey;
 use std::sync::mpsc;
 
-fn random_mutable_data<R: Rng>(type_tag: u64, public_key: &PublicKey, rng: &mut R) -> MutableData {
+fn random_mutable_data<R: Rng>(
+    type_tag: u64,
+    public_key: &PublicSignKey,
+    rng: &mut R,
+) -> MutableData {
     let permissions = btree_map![];
     let data = btree_map![];
 

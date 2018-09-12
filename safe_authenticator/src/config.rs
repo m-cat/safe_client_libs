@@ -16,10 +16,10 @@ use safe_core::ipc::req::AppExchangeInfo;
 use safe_core::ipc::resp::AppKeys;
 use safe_core::ipc::IpcError;
 use safe_core::{Client, CoreError, FutureExt};
+use safe_crypto::hash;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::{HashMap, VecDeque};
-use tiny_keccak::sha3_256;
 
 /// App data stored in the authenticator configuration.
 ///
@@ -60,7 +60,8 @@ pub fn list_apps(client: &AuthClient) -> Box<AuthFuture<(Option<u64>, Apps)>> {
 
 /// Retrieves an app info by the given app ID.
 pub fn get_app(client: &AuthClient, app_id: &str) -> Box<AuthFuture<AppInfo>> {
-    let app_id_hash = sha3_256(app_id.as_bytes());
+    println!("{}", 13);
+    let app_id_hash = hash(app_id.as_bytes());
     list_apps(client)
         .and_then(move |(_, config)| {
             config
@@ -78,7 +79,7 @@ pub fn insert_app(
     app: AppInfo,
 ) -> Box<AuthFuture<(u64, Apps)>> {
     let client = client.clone();
-    let hash = sha3_256(app.info.id.as_bytes());
+    let hash = hash(app.info.id.as_bytes());
 
     mutate_entry(&client, KEY_APPS, apps, new_version, move |apps| {
         apps.insert(hash, app.clone()).is_none()
@@ -92,7 +93,7 @@ pub fn remove_app(
     new_version: u64,
     app_id: &str,
 ) -> Box<AuthFuture<(u64, Apps)>> {
-    let hash = sha3_256(app_id.as_bytes());
+    let hash = hash(app_id.as_bytes());
     mutate_entry(client, KEY_APPS, apps, new_version, move |apps| {
         apps.remove(&hash).is_some()
     })
@@ -143,6 +144,7 @@ pub fn remove_from_app_revocation_queue(
     app_id: &str,
 ) -> Box<AuthFuture<(u64, RevocationQueue)>> {
     trace!("Removing app from revocation queue with ID {}...", app_id);
+    println!("8");
 
     let app_id = app_id.to_string();
     mutate_entry(

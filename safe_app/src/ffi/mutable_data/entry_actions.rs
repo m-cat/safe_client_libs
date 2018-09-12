@@ -92,7 +92,7 @@ pub unsafe extern "C" fn mdata_entry_actions_delete(
     })
 }
 
-/// Free the entry actions from memory
+/// Free the entry actions from memory.
 #[no_mangle]
 pub unsafe extern "C" fn mdata_entry_actions_free(
     app: *const App,

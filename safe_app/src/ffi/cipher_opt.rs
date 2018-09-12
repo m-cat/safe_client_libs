@@ -107,8 +107,8 @@ mod tests {
     use ffi::object_cache::CipherOptHandle;
     use ffi_utils::test_utils::{call_0, call_1};
     use ffi_utils::ErrorCode;
-    use rust_sodium::crypto::box_;
     use safe_core::{utils, Client};
+    use safe_crypto;
     use test_utils::{create_app, run_now};
     use {App, AppContext};
 
@@ -179,8 +179,6 @@ mod tests {
     }
 
     // Test asymmetric encryption and decryption.
-    // NOTE: rustfmt is behaving erratically on this function. Disabling it for now.
-    #[cfg_attr(rustfmt, rustfmt_skip)]
     #[test]
     fn app_0_to_app_1_asym() {
         // Setup
@@ -188,8 +186,9 @@ mod tests {
         let app_1 = create_app();
 
         // Get encryption public key of App 1.
-        let enc_pk = run_now(&app_1,
-                             move |client, _| unwrap!(client.public_encryption_key()));
+        let enc_pk = run_now(&app_1, move |client, _| {
+            unwrap!(client.public_encryption_key())
+        });
 
         // Insert it into App 0's object cache.
         let enc_pk_h = run_now(&app_0, move |_, context| {
@@ -198,7 +197,9 @@ mod tests {
 
         // Create asymmetric cypher opt on App 0's end.
         let cipher_opt_h = unsafe {
-            unwrap!(call_1(|ud, cb| cipher_opt_new_asymmetric(&app_0, enc_pk_h, ud, cb)))
+            unwrap!(call_1(|ud, cb| cipher_opt_new_asymmetric(
+                &app_0, enc_pk_h, ud, cb
+            )))
         };
 
         // Encrypt the plaintext on App 0's end.
@@ -219,13 +220,23 @@ mod tests {
         // App 0 cannot decrypt the ciphertext, because it was encrypted with
         // App 1's public key.
         let (plain_text, cipher_text) = run_now(&app_0, move |client, context| {
-            assert!(!decrypt_and_check(client, context, &cipher_text, &plain_text));
+            assert!(!decrypt_and_check(
+                client,
+                context,
+                &cipher_text,
+                &plain_text
+            ));
             (plain_text, cipher_text)
         });
 
         // App 1 can decrypt it.
         run_now(&app_1, move |client, context| {
-            assert!(decrypt_and_check(client, context, &cipher_text, &plain_text));
+            assert!(decrypt_and_check(
+                client,
+                context,
+                &cipher_text,
+                &plain_text
+            ));
         });
     }
 
@@ -235,7 +246,7 @@ mod tests {
         let app = create_app();
 
         let peer_encrypt_key_handle = run_now(&app, |_, context| {
-            let (pk, _) = box_::gen_keypair();
+            let (pk, _) = safe_crypto::gen_encrypt_keypair();
             context.object_cache().insert_encrypt_key(pk)
         });
 

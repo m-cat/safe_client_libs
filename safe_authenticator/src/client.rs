@@ -19,22 +19,21 @@ use routing::{
     AccountPacket, Authority, BootstrapConfig, EntryAction, Event, FullId, MessageId, MutableData,
     Response, Value, XorName, ACC_LOGIN_ENTRY_KEY, TYPE_TAG_SESSION_PACKET,
 };
-use rust_sodium::crypto::sign::Seed;
-use rust_sodium::crypto::{box_, sign};
 use safe_core::client::account::Account;
 use safe_core::client::{
     setup_routing, spawn_routing_thread, ClientInner, IMMUT_DATA_CACHE_SIZE, REQUEST_TIMEOUT_SECS,
 };
-use safe_core::crypto::{shared_box, shared_secretbox, shared_sign};
 #[cfg(any(test, feature = "testing"))]
 use safe_core::utils::seed::{divide_seed, SEED_SUBPARTS};
 use safe_core::{utils, Client, ClientKeys, CoreError, FutureExt, MDataInfo, NetworkTx};
+use safe_crypto::{
+    self, PublicEncryptKey, PublicSignKey, SecretEncryptKey, SecretSignKey, Seed, SymmetricKey,
+};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::rc::Rc;
 use std::time::Duration;
-use tiny_keccak::sha3_256;
 use tokio_core::reactor::Handle;
 use AuthFuture;
 use AuthMsgTx;
@@ -84,7 +83,7 @@ impl AuthClient {
 where {
         let arr = divide_seed(seed)?;
 
-        let id_seed = Seed(sha3_256(arr[SEED_SUBPARTS - 2]));
+        let id_seed = Seed::from_bytes(safe_crypto::hash(arr[SEED_SUBPARTS - 2]));
 
         Self::registered_impl(
             arr[0],
@@ -178,7 +177,7 @@ where {
             btree_set![pub_key],
         ).map_err(CoreError::from)?;
 
-        let digest = sha3_256(&pub_key.0);
+        let digest = safe_crypto::hash(&pub_key.into_bytes());
         let cm_addr = Authority::ClientManager(XorName(digest));
 
         let msg_id = MessageId::new();
@@ -326,7 +325,7 @@ where {
         let id_packet = acc.maid_keys.clone().into();
 
         let pub_key = acc.maid_keys.sign_pk;
-        let digest = sha3_256(&pub_key.0);
+        let digest = safe_crypto::hash(&pub_key.into_bytes());
         let cm_addr = Authority::ClientManager(XorName(digest));
 
         trace!("Creating an actual routing...");
@@ -487,32 +486,32 @@ impl Client for AuthClient {
         self.inner.clone()
     }
 
-    fn public_encryption_key(&self) -> Option<box_::PublicKey> {
+    fn public_encryption_key(&self) -> Option<PublicEncryptKey> {
         let auth_inner = self.auth_inner.borrow();
         Some(auth_inner.acc.maid_keys.enc_pk)
     }
 
-    fn secret_encryption_key(&self) -> Option<shared_box::SecretKey> {
+    fn secret_encryption_key(&self) -> Option<SecretEncryptKey> {
         let auth_inner = self.auth_inner.borrow();
         Some(auth_inner.acc.maid_keys.enc_sk.clone())
     }
 
-    fn public_signing_key(&self) -> Option<sign::PublicKey> {
+    fn public_signing_key(&self) -> Option<PublicSignKey> {
         let auth_inner = self.auth_inner.borrow();
         Some(auth_inner.acc.maid_keys.sign_pk)
     }
 
-    fn secret_signing_key(&self) -> Option<shared_sign::SecretKey> {
+    fn secret_signing_key(&self) -> Option<SecretSignKey> {
         let auth_inner = self.auth_inner.borrow();
         Some(auth_inner.acc.maid_keys.sign_sk.clone())
     }
 
-    fn secret_symmetric_key(&self) -> Option<shared_secretbox::Key> {
+    fn secret_symmetric_key(&self) -> Option<SymmetricKey> {
         let auth_inner = self.auth_inner.borrow();
         Some(auth_inner.acc.maid_keys.enc_key.clone())
     }
 
-    fn owner_key(&self) -> Option<sign::PublicKey> {
+    fn owner_key(&self) -> Option<PublicSignKey> {
         let auth_inner = self.auth_inner.borrow();
         Some(auth_inner.acc.maid_keys.sign_pk)
     }

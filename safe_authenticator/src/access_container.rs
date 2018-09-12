@@ -15,11 +15,10 @@ use client::AuthClient;
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
 use routing::EntryActions;
-use rust_sodium::crypto::secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::AppKeys;
-use safe_core::utils::{symmetric_decrypt, symmetric_encrypt};
 use safe_core::{recovery, Client, FutureExt, MDataInfo};
+use safe_crypto::SymmetricKey;
 use std::collections::HashMap;
 
 /// Key of the authenticator entry in the access container
@@ -29,8 +28,9 @@ pub const AUTHENTICATOR_ENTRY: &str = "authenticator";
 pub fn enc_key(
     access_container: &MDataInfo,
     app_id: &str,
-    secret_key: &secretbox::Key,
+    secret_key: &SymmetricKey,
 ) -> Result<Vec<u8>, AuthError> {
+    println!("enc_key()");
     let nonce = access_container
         .nonce()
         .ok_or_else(|| AuthError::from("No valid nonce for access container"))?;
@@ -40,19 +40,19 @@ pub fn enc_key(
 /// Decodes raw authenticator entry.
 pub fn decode_authenticator_entry(
     encoded: &[u8],
-    enc_key: &secretbox::Key,
+    enc_key: &SymmetricKey,
 ) -> Result<HashMap<String, MDataInfo>, AuthError> {
-    let plaintext = symmetric_decrypt(encoded, enc_key)?;
+    let plaintext = enc_key.decrypt_bytes(encoded)?;
     Ok(deserialise(&plaintext)?)
 }
 
 /// Encodes authenticator entry into raw mdata content.
 pub fn encode_authenticator_entry(
     decoded: &HashMap<String, MDataInfo>,
-    enc_key: &secretbox::Key,
+    enc_key: &SymmetricKey,
 ) -> Result<Vec<u8>, AuthError> {
     let plaintext = serialise(decoded)?;
-    Ok(symmetric_encrypt(&plaintext, enc_key, None)?)
+    Ok(enc_key.encrypt_bytes(&plaintext)?)
 }
 
 /// Gets an authenticator entry from the access container
@@ -120,19 +120,19 @@ pub fn put_authenticator_entry(
 /// Decodes raw app entry.
 pub fn decode_app_entry(
     encoded: &[u8],
-    enc_key: &secretbox::Key,
+    enc_key: &SymmetricKey,
 ) -> Result<AccessContainerEntry, AuthError> {
-    let plaintext = symmetric_decrypt(encoded, enc_key)?;
+    let plaintext = enc_key.decrypt_bytes(encoded)?;
     Ok(deserialise(&plaintext)?)
 }
 
 /// Encodes app entry into raw mdata content.
 pub fn encode_app_entry(
     decoded: &AccessContainerEntry,
-    enc_key: &secretbox::Key,
+    enc_key: &SymmetricKey,
 ) -> Result<Vec<u8>, AuthError> {
     let plaintext = serialise(decoded)?;
-    Ok(symmetric_encrypt(&plaintext, enc_key, None)?)
+    Ok(enc_key.encrypt_bytes(&plaintext)?)
 }
 
 /// Gets an access container entry
@@ -141,6 +141,7 @@ pub fn fetch_entry(
     app_id: &str,
     app_keys: AppKeys,
 ) -> Box<AuthFuture<(u64, Option<AccessContainerEntry>)>> {
+    println!("{}", 15);
     trace!(
         "Fetching access container entry for app with ID {}...",
         app_id
@@ -199,11 +200,13 @@ pub fn delete_entry(
     app_keys: &AppKeys,
     version: u64,
 ) -> Box<AuthFuture<()>> {
+    println!("{}", 20);
     // TODO: make sure this can't be called for authenticator Entry-0
 
     let access_container = client.access_container();
     let key = fry!(enc_key(&access_container, app_id, &app_keys.enc_key));
     let actions = EntryActions::new().del(key, version);
+    println!("{}", 21);
 
     recovery::mutate_mdata_entries(
         client,
