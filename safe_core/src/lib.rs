@@ -146,6 +146,11 @@ pub use self::event_loop::{CoreFuture, CoreMsg, CoreMsgRx, CoreMsgTx};
 pub use self::self_encryption_storage::{SelfEncryptionStorage, SelfEncryptionStorageError};
 pub use self::utils::FutureExt;
 
+use std::sync::mpsc;
+use futures::{Future, IntoFuture};
+use std::sync::Mutex;
+use std::fmt::Debug;
+
 /// All Maidsafe tagging should positive-offset from this.
 pub const MAIDSAFE_TAG: u64 = 5_483_000;
 /// `MutableData` type tag for a directory.
@@ -154,4 +159,51 @@ pub const DIR_TAG: u64 = 15_000;
 /// Gets name of the dedicated container of the given app.
 pub fn app_container_name(app_id: &str) -> String {
     format!("apps/{}", app_id)
+}
+
+/// Trait providing the `send` and `run` functions.
+pub trait Run {
+    type RunClient: Client;
+    type Context;
+    type Error: Debug + Send;
+    type MsgTx;
+
+    fn core_tx(&self) -> &Mutex<Self::MsgTx>;
+
+    /// Send a message to client's event loop.
+    fn send<F>(&self, f: F) -> Result<(), Self::Error>
+    where
+        F: FnOnce(&Self::RunClient, &Self::Context) -> Option<Box<Future<Item = (), Error = ()>>>
+            + Send
+            + 'static,
+    {
+        let msg = CoreMsg::new(f);
+        let core_tx = unwrap!(self.core_tx().lock());
+        core_tx.unbounded_send(msg).map_err(Self::Error::from)
+    }
+
+    /// Run the given closure inside the event loop of the client. The closure should return a
+    /// future which will then be driven to completion and its result returned.
+    fn run<F, I, T>(&self, f: F) -> Result<T, Self::Error>
+    where
+        F: FnOnce(&Self::RunClient, &Self::Context) -> I + Send + 'static,
+        I: IntoFuture<Item = T, Error = Self::Error> + 'static,
+        T: Send + 'static,
+    {
+        let (tx, rx) = mpsc::channel();
+
+        unwrap!(self.send(move |client, context| {
+            let future = f(client, context)
+                .into_future()
+                .then(move |result| {
+                    unwrap!(tx.send(result));
+                    Ok(())
+                })
+                .into_box();
+
+            Some(future)
+        }));
+
+        unwrap!(rx.recv())
+    }
 }

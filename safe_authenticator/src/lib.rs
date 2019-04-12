@@ -125,7 +125,7 @@ use futures::Future;
 use maidsafe_utilities::thread::{self, Joiner};
 #[cfg(feature = "use-mock-routing")]
 use safe_core::MockRouting;
-use safe_core::{event_loop, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx};
+use safe_core::{event_loop, CoreMsg, CoreMsgTx, FutureExt, NetworkEvent, NetworkTx, Run};
 use std::sync::mpsc::sync_channel;
 use std::sync::Mutex;
 use tokio_core::reactor::{Core, Handle};
@@ -154,16 +154,6 @@ pub struct Authenticator {
 }
 
 impl Authenticator {
-    /// Send a message to the authenticator event loop.
-    pub fn send<F>(&self, f: F) -> Result<(), AuthError>
-    where
-        F: FnOnce(&AuthClient) -> Option<Box<Future<Item = (), Error = ()>>> + Send + 'static,
-    {
-        let msg = CoreMsg::new(|client, _| f(client));
-        let core_tx = unwrap!(self.core_tx.lock());
-        core_tx.unbounded_send(msg).map_err(AuthError::from)
-    }
-
     /// Create a new account.
     pub fn create_acc<S, N>(
         locator: S,
@@ -431,6 +421,17 @@ impl Authenticator {
             },
             disconnect_notifier,
         )
+    }
+}
+
+impl Run for Authenticator {
+    type RunClient = AuthClient;
+    type Context = ();
+    type Error = AuthError;
+    type MsgTx = CoreMsgTx<Self::RunClient, Self::Context>;
+
+    fn core_tx(&self) -> &Mutex<Self::MsgTx> {
+        &self.core_tx
     }
 }
 

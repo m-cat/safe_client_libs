@@ -467,7 +467,7 @@ where {
 }
 
 impl Client for AuthClient {
-    type MsgType = ();
+    type Context = ();
 
     fn full_id(&self) -> Option<FullId> {
         let auth_inner = self.auth_inner.borrow();
@@ -483,7 +483,7 @@ impl Client for AuthClient {
         Some(auth_inner.cm_addr)
     }
 
-    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::MsgType>>> {
+    fn inner(&self) -> Rc<RefCell<ClientInner<Self, Self::Context>>> {
         self.inner.clone()
     }
 
