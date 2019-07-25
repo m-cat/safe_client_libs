@@ -15,7 +15,7 @@ use ffi_utils::StringError;
 use futures::future::{self, Either};
 use futures::Future;
 use maidsafe_utilities::serialisation::deserialise;
-use routing::{ClientError, User, XorName};
+use routing::{ClientError, XorName};
 use safe_core::ffi::ipc::resp::MetadataResponse as FfiUserMetadata;
 use safe_core::ipc::req::{
     container_perms_into_permission_set, ContainerPermissions, IpcReq, ShareMDataReq,
@@ -23,7 +23,7 @@ use safe_core::ipc::req::{
 use safe_core::ipc::resp::{AccessContainerEntry, IpcResp, UserMetadata, METADATA_KEY};
 use safe_core::ipc::{self, IpcError, IpcMsg};
 use safe_core::{recovery, Client, CoreError, FutureExt};
-use safe_nd::PublicKey;
+use safe_nd::{MDataAddress, PublicKey};
 use std::collections::HashMap;
 use std::ffi::CString;
 
@@ -120,13 +120,18 @@ pub fn update_container_perms(
                 let perm_set = container_perms_into_permission_set(&access);
 
                 let fut = client
-                    .get_mdata_version(mdata_info.name(), mdata_info.type_tag())
+                    .get_mdata_version_new(MDataAddress::Seq {
+                        name: mdata_info.name(),
+                        tag: mdata_info.type_tag(),
+                    })
                     .and_then(move |version| {
                         recovery::set_mdata_user_permissions(
                             &c2,
-                            mdata_info.name(),
-                            mdata_info.type_tag(),
-                            User::Key(app_pk),
+                            MDataAddress::Seq {
+                                name: mdata_info.name(),
+                                tag: mdata_info.type_tag(),
+                            },
+                            app_pk,
                             perm_set,
                             version + 1,
                         )

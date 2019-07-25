@@ -16,7 +16,7 @@ use ffi_utils::{
     catch_unwind_cb, from_c_str, FfiResult, NativeResult, OpaqueCtx, ReprC, SafePtr, FFI_RESULT_OK,
 };
 use futures::{stream, Future, Stream};
-use routing::{ClientError, User};
+use routing::User;
 use safe_core::ffi::ipc::req::{AuthReq, ContainersReq, ShareMDataReq};
 use safe_core::ffi::ipc::resp::MetadataResponse;
 use safe_core::ipc::req::{
@@ -26,7 +26,7 @@ use safe_core::ipc::req::{
 use safe_core::ipc::resp::IpcResp;
 use safe_core::ipc::{decode_msg, IpcError, IpcMsg};
 use safe_core::{client, Client, CoreError, FutureExt};
-use safe_nd::PublicKey;
+use safe_nd::{Error, PublicKey};
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
 
@@ -376,7 +376,7 @@ pub unsafe extern "C" fn encode_containers_resp(
                             move |res| {
                                 let version = match res {
                                     // Updating an existing entry
-                                    Ok((version, Some(mut existing_perms))) => {
+                                    Ok((version, mut existing_perms)) => {
                                         for (key, val) in perms {
                                             let _ = existing_perms.insert(key, val);
                                         }
@@ -386,10 +386,9 @@ pub unsafe extern "C" fn encode_containers_resp(
                                     }
 
                                     // Adding a new access container entry
-                                    Ok((_, None))
-                                    | Err(AuthError::CoreError(CoreError::RoutingClientError(
-                                        ClientError::NoSuchEntry,
-                                    ))) => 0,
+                                    Err(AuthError::CoreError(
+                                        CoreError::NewRoutingClientError(Error::NoSuchEntry),
+                                    )) => 0,
 
                                     // Error has occurred while trying to get an
                                     // existing entry

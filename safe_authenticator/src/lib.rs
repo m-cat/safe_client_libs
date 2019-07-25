@@ -202,7 +202,9 @@ impl Authenticator {
 
             unwrap!(
                 core_tx.unbounded_send(CoreMsg::new(move |client, &()| std_dirs::create(client)
-                    .map_err(|error| AuthError::AccountContainersCreation(error.to_string()))
+                    .map_err(|error| AuthError::AccountContainersCreation(
+                        error.to_string().to_lowercase()
+                    ))
                     .then(move |res| {
                         match res {
                             Ok(_) => unwrap!(tx.send(Ok(core_tx2))),
@@ -214,7 +216,6 @@ impl Authenticator {
                     .into_box()
                     .into()))
             );
-
             event_loop::run(el, &client, &(), core_rx);
         });
 

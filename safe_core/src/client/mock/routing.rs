@@ -15,12 +15,13 @@ use routing::{
     Authority, BootstrapConfig, ClientError, EntryAction, Event, FullId, InterfaceError,
     MutableData, PermissionSet, Request, Response, RoutingError, User, TYPE_TAG_SESSION_PACKET,
 };
-use safe_nd::Coins;
 use safe_nd::{
-    AppFullId, ClientFullId, ClientPublicId, IData, IDataAddress, Message, MessageId,
+    AppFullId, ClientFullId, Coins, ClientPublicId, IData, IDataAddress, Message, MessageId,
     PubImmutableData, PublicId, PublicKey, Request as RpcRequest, Response as RpcResponse,
     Signature, XorName,
 };
+#[cfg(any(feature = "testing", test))]
+use safe_nd::{Error, Request as SndRequest, Response as SndResponse};
 use std;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -31,9 +32,11 @@ use std::time::Duration;
 
 /// Function that is used to tap into routing requests and return preconditioned responses.
 pub type RequestHookFn = FnMut(&Request) -> Option<Response> + 'static;
+pub type RequestHookFnNew = FnMut(&RpcRequest) -> Option<RpcResponse> + 'static;
 
 /// Function that is used to modify responses before they are sent.
 pub type ResponseHookFn = FnMut(Response) -> Response + 'static;
+pub type ResponseHookFnNew = FnMut(RpcResponse) -> RpcResponse + 'static;
 
 const CONNECT_THREAD_NAME: &str = "Mock routing connect";
 const DELAY_THREAD_NAME: &str = "Mock routing delay";
@@ -108,7 +111,11 @@ pub struct Routing {
     max_ops_countdown: Option<Cell<u64>>,
     timeout_simulation: bool,
     request_hook: Option<Box<RequestHookFn>>,
+    /// Temporary hook for the new safe_nd::Request
+    pub request_hook_new: Option<Box<RequestHookFnNew>>,
     response_hook: Option<Box<ResponseHookFn>>,
+    /// Temporary hook for the new safe_nd::Response
+    pub response_hook_new: Option<Box<ResponseHookFnNew>>,
 }
 
 /// An enum representing the Full Id variants for a Client or App
@@ -161,7 +168,9 @@ impl Routing {
             max_ops_countdown: None,
             timeout_simulation: false,
             request_hook: None,
+            request_hook_new: None,
             response_hook: None,
+            response_hook_new: None,
         })
     }
 
@@ -1062,6 +1071,15 @@ impl Routing {
         self.request_hook = Some(hook);
     }
 
+    /// Set hook function to override response before request is processed, for test purposes.
+    pub fn set_request_hook_new<F>(&mut self, hook: F)
+    where
+        F: FnMut(&SndRequest) -> Option<SndResponse> + 'static,
+    {
+        let hook: Box<RequestHookFnNew> = Box::new(hook);
+        self.request_hook_new = Some(hook);
+    }
+
     /// Set hook function to override response after request is processed, for test purposes.
     pub fn set_response_hook<F>(&mut self, hook: F)
     where
@@ -1069,6 +1087,15 @@ impl Routing {
     {
         let hook: Box<ResponseHookFn> = Box::new(hook);
         self.response_hook = Some(hook);
+    }
+
+    /// Set hook function to override response after request is processed, for test purposes.
+    pub fn set_response_hook_new<F>(&mut self, hook: F)
+    where
+        F: FnMut(SndResponse) -> SndResponse + 'static,
+    {
+        let hook: Box<ResponseHookFnNew> = Box::new(hook);
+        self.response_hook_new = Some(hook);
     }
 
     /// Removes hook function to override response results
@@ -1097,7 +1124,7 @@ impl Routing {
         &self,
         coin_balance_name: &XorName,
         amount: Coins,
-    ) -> Result<(), safe_nd::Error> {
+    ) -> Result<(), Error> {
         let mut vault = self.lock_vault(true);
         vault.mock_increment_balance(coin_balance_name, amount)
     }

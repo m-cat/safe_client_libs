@@ -14,12 +14,12 @@ use super::{AuthError, AuthFuture};
 use crate::client::AuthClient;
 use futures::Future;
 use maidsafe_utilities::serialisation::{deserialise, serialise};
-use routing::EntryActions;
 use rust_sodium::crypto::secretbox;
 use safe_core::ipc::resp::{access_container_enc_key, AccessContainerEntry};
 use safe_core::ipc::AppKeys;
 use safe_core::utils::{symmetric_decrypt, symmetric_encrypt};
 use safe_core::{recovery, Client, FutureExt, MDataInfo};
+use safe_nd::MDataSeqEntryActions;
 use std::collections::HashMap;
 
 /// Key of the authenticator entry in the access container.
@@ -70,14 +70,14 @@ pub fn fetch_authenticator_entry(
     };
 
     client
-        .get_mdata_value(access_container.name(), access_container.type_tag(), key)
+        .get_seq_mdata_value(access_container.name(), access_container.type_tag(), key)
         .map_err(From::from)
         .and_then(move |value| {
             let enc_key = c2.secret_symmetric_key().ok_or_else(|| {
                 AuthError::Unexpected("Secret symmetric key not found".to_string())
             })?;
-            decode_authenticator_entry(&value.content, &enc_key)
-                .map(|decoded| (value.entry_version, decoded))
+            decode_authenticator_entry(&value.data, &enc_key)
+                .map(|decoded| (value.version, decoded))
         })
         .into_box()
 }
@@ -100,16 +100,16 @@ pub fn put_authenticator_entry(
     };
 
     let actions = if version == 0 {
-        EntryActions::new().ins(key, ciphertext, 0)
+        MDataSeqEntryActions::new().ins(key, ciphertext, 0)
     } else {
-        EntryActions::new().update(key, ciphertext, version)
+        MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
 
     recovery::mutate_mdata_entries(
         client,
         access_container.name(),
         access_container.type_tag(),
-        actions.into(),
+        actions,
     )
     .map_err(From::from)
     .into_box()
@@ -138,7 +138,7 @@ pub fn fetch_entry(
     client: &AuthClient,
     app_id: &str,
     app_keys: AppKeys,
-) -> Box<AuthFuture<(u64, Option<AccessContainerEntry>)>> {
+) -> Box<AuthFuture<(u64, AccessContainerEntry)>> {
     trace!(
         "Fetching access container entry for app with ID {}...",
         app_id
@@ -148,16 +148,14 @@ pub fn fetch_entry(
     trace!("Fetching entry using entry key {:?}", key);
 
     client
-        .get_mdata_value(access_container.name(), access_container.type_tag(), key)
-        .map_err(From::from)
-        .and_then(move |value| {
-            let decoded = if value.content.is_empty() {
-                None
+        .get_seq_mdata_value(access_container.name(), access_container.type_tag(), key)
+        .then(move |value| {
+            if let Err(e) = value {
+                Err(AuthError::from(e))
             } else {
-                Some(decode_app_entry(&value.content, &app_keys.enc_key)?)
-            };
-
-            Ok((value.entry_version, decoded))
+                let val = unwrap!(value);
+                Ok((val.version, decode_app_entry(&val.data, &app_keys.enc_key)?))
+            }
         })
         .into_box()
 }
@@ -177,16 +175,16 @@ pub fn put_entry(
     let ciphertext = fry!(encode_app_entry(permissions, &app_keys.enc_key));
 
     let actions = if version == 0 {
-        EntryActions::new().ins(key, ciphertext, 0)
+        MDataSeqEntryActions::new().ins(key, ciphertext, 0)
     } else {
-        EntryActions::new().update(key, ciphertext, version)
+        MDataSeqEntryActions::new().update(key, ciphertext, version)
     };
 
     recovery::mutate_mdata_entries(
         client,
         access_container.name(),
         access_container.type_tag(),
-        actions.into(),
+        actions,
     )
     .map_err(From::from)
     .into_box()
@@ -203,7 +201,7 @@ pub fn delete_entry(
 
     let access_container = client.access_container();
     let key = fry!(enc_key(&access_container, app_id, &app_keys.enc_key));
-    let actions = EntryActions::new().del(key, version);
+    let actions = MDataSeqEntryActions::new().del(key, version);
 
     recovery::mutate_mdata_entries(
         client,

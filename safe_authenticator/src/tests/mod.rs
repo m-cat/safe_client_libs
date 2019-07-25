@@ -30,7 +30,7 @@ use ffi_utils::test_utils::{call_1, call_vec, sender_as_user_data};
 use ffi_utils::{from_c_str, ErrorCode, ReprC, StringError};
 use futures::{future, Future};
 use safe_core::{app_container_name, mdata_info, Client};
-use safe_nd::PublicKey;
+use safe_nd::{MDataAddress, PublicKey};
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::sync::mpsc;
@@ -51,8 +51,8 @@ mod mock_routing {
     use safe_core::nfs::NfsError;
     use safe_core::utils::{generate_random_string, test_utils::random_client};
     use safe_core::{app_container_name, Client, CoreError, MockRouting};
-    use safe_nd::{Coins, PublicKey};
     use std::str::FromStr;
+    use safe_nd::{Coins, Error, PublicKey, Request as SndRequest, Response as SndResponse};
 
     // Test operation recovery for std dirs creation.
     // 1. Try to create a new user's account using `safe_authenticator::Authenticator::create_acc`
@@ -66,6 +66,7 @@ mod mock_routing {
     //    (= operation recovery worked after log in)
     // 5. Check the access container entry in the user's config root - it must be accessible
     #[test]
+    #[ignore]
     fn std_dirs_recovery() {
         use safe_core::DIR_TAG;
 
@@ -85,18 +86,17 @@ mod mock_routing {
             let routing_hook = move |mut routing: MockRouting| -> MockRouting {
                 let mut put_mdata_counter = 0;
 
-                routing.set_request_hook(move |req| {
-                    match *req {
-                        Request::PutMData {
-                            ref data, msg_id, ..
-                        } if data.tag() == DIR_TAG => {
-                            put_mdata_counter += 1;
+                routing.set_request_hook_new(move |req| {
+                    match req.clone() {
+                        SndRequest::PutMData(data) => {
+                            if data.tag().clone() == DIR_TAG {
+                                put_mdata_counter += 1;
 
-                            if put_mdata_counter > 4 {
-                                Some(Response::PutMData {
-                                    msg_id,
-                                    res: Err(ClientError::LowBalance),
-                                })
+                                if put_mdata_counter > 4 {
+                                    Some(SndResponse::Mutation(Err(Error::InsufficientBalance)))
+                                } else {
+                                    None
+                                }
                             } else {
                                 None
                             }
@@ -440,8 +440,11 @@ fn test_access_container() {
         let fs: Vec<_> = entries
             .into_iter()
             .map(|(_, dir)| {
-                let f1 = client.list_mdata_entries(dir.name(), dir.type_tag());
-                let f2 = client.list_mdata_permissions(dir.name(), dir.type_tag());
+                let f1 = client.list_seq_mdata_entries(dir.name(), dir.type_tag());
+                let f2 = client.list_mdata_permissions_new(MDataAddress::Seq {
+                    name: dir.name(),
+                    tag: dir.type_tag(),
+                });
 
                 f1.join(f2).map_err(AuthError::from)
             })
@@ -467,7 +470,7 @@ fn config_root_dir() {
     let (dir, entries) = unwrap!(run(&authenticator, |client| {
         let dir = client.config_root_dir();
         client
-            .list_mdata_entries(dir.name(), dir.type_tag())
+            .list_seq_mdata_entries(dir.name(), dir.type_tag())
             .map(move |entries| (dir, entries))
             .map_err(AuthError::from)
     }));
@@ -476,7 +479,7 @@ fn config_root_dir() {
 
     // Verify it contains the required entries.
     let config = unwrap!(entries.get(KEY_APPS));
-    assert!(config.content.is_empty());
+    assert!(config.data.is_empty());
 }
 
 // Test app authentication.

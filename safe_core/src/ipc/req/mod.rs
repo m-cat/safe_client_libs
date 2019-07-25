@@ -23,6 +23,7 @@ use crate::ffi::ipc::req::{
 use crate::ipc::errors::IpcError;
 use ffi_utils::{from_c_str, ReprC, StringError};
 use routing::{Action, PermissionSet};
+use safe_nd::{MDataAction, MDataPermissionSet};
 use std::collections::{BTreeSet, HashMap};
 use std::ffi::{CString, NulError};
 use std::{ptr, slice};
@@ -142,19 +143,19 @@ pub fn container_perms_from_repr_c(
 }
 
 /// Transforms a collection of container permissions into `routing::PermissionSet`
-pub fn container_perms_into_permission_set<'a, Iter>(permissions: Iter) -> PermissionSet
+pub fn container_perms_into_permission_set<'a, Iter>(permissions: Iter) -> MDataPermissionSet
 where
     Iter: IntoIterator<Item = &'a Permission>,
 {
-    let mut ps = PermissionSet::new();
+    let mut ps = MDataPermissionSet::new();
 
     for access in permissions {
         ps = match *access {
-            Permission::Read => ps,
-            Permission::Insert => ps.allow(Action::Insert),
-            Permission::Update => ps.allow(Action::Update),
-            Permission::Delete => ps.allow(Action::Delete),
-            Permission::ManagePermissions => ps.allow(Action::ManagePermissions),
+            Permission::Read => ps.deny(MDataAction::Read),
+            Permission::Insert => ps.allow(MDataAction::Insert),
+            Permission::Update => ps.allow(MDataAction::Update),
+            Permission::Delete => ps.allow(MDataAction::Delete),
+            Permission::ManagePermissions => ps.allow(MDataAction::ManagePermissions),
         };
     }
 

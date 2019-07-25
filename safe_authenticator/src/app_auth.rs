@@ -16,14 +16,13 @@ use crate::config::{self, AppInfo, Apps};
 use crate::ipc::update_container_perms;
 use futures::future::{self, Either};
 use futures::Future;
-use routing::ClientError;
 use safe_core::client;
 use safe_core::ipc::req::{AuthReq, ContainerPermissions, Permission};
 use safe_core::ipc::resp::{AccessContInfo, AccessContainerEntry, AppKeys, AuthGranted};
 use safe_core::{
     app_container_name, client::AuthActions, recovery, Client, CoreError, FutureExt, MDataInfo,
 };
-use safe_nd::{AppPermissions, PublicKey};
+use safe_nd::{AppPermissions, Error, PublicKey};
 use std::collections::HashMap;
 use tiny_keccak::sha3_256;
 
@@ -51,10 +50,9 @@ pub fn app_state(client: &AuthClient, apps: &Apps, app_id: &str) -> Box<AuthFutu
         access_container::fetch_entry(client, app_id, app_keys)
             .then(move |res| {
                 match res {
-                    Ok((_version, Some(_))) => Ok(AppState::Authenticated),
-                    Ok((_, None))
-                    | Err(AuthError::CoreError(CoreError::RoutingClientError(
-                        ClientError::NoSuchEntry,
+                    Ok((_, _)) => Ok(AppState::Authenticated),
+                    Err(AuthError::CoreError(CoreError::NewRoutingClientError(
+                        Error::NoSuchEntry,
                     ))) => {
                         // App is not in access container, so it is revoked
                         Ok(AppState::Revoked)
@@ -120,9 +118,9 @@ fn update_access_container(
                 // Updating an existing entry
                 Ok((version, _)) => version + 1,
                 // Adding a new access container entry
-                Err(AuthError::CoreError(CoreError::RoutingClientError(
-                    ClientError::NoSuchEntry,
-                ))) => 0,
+                Err(AuthError::CoreError(CoreError::NewRoutingClientError(Error::NoSuchEntry))) => {
+                    0
+                }
                 // Error has occurred while trying to get an existing entry
                 Err(e) => return Err(e),
             };
@@ -221,8 +219,6 @@ fn authenticated_app(
 
     access_container::fetch_entry(client, &app_id, app_keys.clone())
         .and_then(move |(_version, perms)| {
-            let perms = perms.unwrap_or_else(AccessContainerEntry::default);
-
             // TODO: check if we need to update app permissions
 
             // Check whether we need to create/update dedicated container

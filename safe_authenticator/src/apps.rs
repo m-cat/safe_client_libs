@@ -107,7 +107,7 @@ pub fn list_revoked(client: &AuthClient) -> Box<AuthFuture<Vec<AppExchangeInfo>>
     config::list_apps(client)
         .map(move |(_, auth_cfg)| (c2.access_container(), auth_cfg))
         .and_then(move |(access_container, auth_cfg)| {
-            c3.list_mdata_entries(access_container.name(), access_container.type_tag())
+            c3.list_seq_mdata_entries(access_container.name(), access_container.type_tag())
                 .map_err(From::from)
                 .map(move |entries| (access_container, entries, auth_cfg))
         })
@@ -124,7 +124,7 @@ pub fn list_revoked(client: &AuthClient) -> Box<AuthFuture<Vec<AppExchangeInfo>>
                 // been deleted (is empty), then it's revoked.
                 let revoked = entries
                     .get(&key)
-                    .map(|entry| entry.content.is_empty())
+                    .map(|entry| entry.data.is_empty())
                     .unwrap_or(true);
 
                 if revoked {
@@ -144,7 +144,7 @@ pub fn list_registered(client: &AuthClient) -> Box<AuthFuture<Vec<RegisteredApp>
     config::list_apps(client)
         .map(move |(_, auth_cfg)| (c2.access_container(), auth_cfg))
         .and_then(move |(access_container, auth_cfg)| {
-            c3.list_mdata_entries(access_container.name(), access_container.type_tag())
+            c3.list_seq_mdata_entries(access_container.name(), access_container.type_tag())
                 .map_err(From::from)
                 .map(move |entries| (access_container, entries, auth_cfg))
         })
@@ -159,12 +159,12 @@ pub fn list_registered(client: &AuthClient) -> Box<AuthFuture<Vec<RegisteredApp>
 
                 // Empty entry means it has been deleted
                 let entry = match entries.get(&key) {
-                    Some(entry) if !entry.content.is_empty() => Some(entry),
+                    Some(entry) if !entry.data.is_empty() => Some(entry),
                     _ => None,
                 };
 
                 if let Some(entry) = entry {
-                    let plaintext = symmetric_decrypt(&entry.content, &app.keys.enc_key)?;
+                    let plaintext = symmetric_decrypt(&entry.data, &app.keys.enc_key)?;
                     let app_access = deserialise::<AccessContainerEntry>(&plaintext)?;
 
                     let mut containers = HashMap::new();
