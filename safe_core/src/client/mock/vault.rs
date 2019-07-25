@@ -834,7 +834,7 @@ impl Vault {
                     .and_then(|data| match data {
                         MData::Seq(mdata) => {
                             if let PublicId::Client(client_id) = requester.clone() {
-                                if client_id.public_key() == mdata.owners() {
+                                if client_id.public_key() == mdata.owner() {
                                     let address = *mdata.address();
                                     self.delete_data(DataId::Mutable(address));
                                     self.commit_mutation(requester.name());
@@ -848,7 +848,7 @@ impl Vault {
                         }
                         MData::Unseq(mdata) => {
                             if let PublicId::Client(client_id) = requester.clone() {
-                                if client_id.public_key() == mdata.owners() {
+                                if client_id.public_key() == mdata.owner() {
                                     let address = *mdata.address();
                                     self.delete_data(DataId::Mutable(address));
                                     self.commit_mutation(requester.name());
