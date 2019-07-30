@@ -10,15 +10,13 @@ use crate::client::account::{Account as ClientAccount, ClientKeys};
 #[cfg(feature = "mock-network")]
 use crate::client::mock::Routing;
 use crate::client::{
-    setup_routing, spawn_routing_thread, AuthActions, Client, ClientInner, IMMUT_DATA_CACHE_SIZE,
-    REQUEST_TIMEOUT_SECS,
+    setup_routing, spawn_routing_thread, AuthActions, Client, ClientInner, REQUEST_TIMEOUT_SECS,
 };
 use crate::crypto::{shared_box, shared_secretbox, shared_sign};
 use crate::errors::CoreError;
 use crate::event::NetworkTx;
 use crate::event_loop::CoreMsgTx;
 use crate::utils;
-use lru_cache::LruCache;
 use new_rand::rngs::StdRng;
 use new_rand::SeedableRng;
 #[cfg(not(feature = "mock-network"))]
@@ -187,7 +185,6 @@ impl CoreClient {
                 el_handle,
                 routing,
                 hooks: HashMap::with_capacity(10),
-                cache: LruCache::new(IMMUT_DATA_CACHE_SIZE),
                 timeout: Duration::from_secs(REQUEST_TIMEOUT_SECS),
                 joiner,
                 net_tx,

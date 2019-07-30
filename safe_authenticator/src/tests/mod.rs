@@ -51,8 +51,8 @@ mod mock_routing {
     use safe_core::nfs::NfsError;
     use safe_core::utils::{generate_random_string, test_utils::random_client};
     use safe_core::{app_container_name, Client, CoreError, MockRouting};
-    use std::str::FromStr;
     use safe_nd::{Coins, Error, PublicKey, Request as SndRequest, Response as SndResponse};
+    use std::str::FromStr;
 
     // Test operation recovery for std dirs creation.
     // 1. Try to create a new user's account using `safe_authenticator::Authenticator::create_acc`

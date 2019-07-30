@@ -45,7 +45,7 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
         };
 
         self.client
-            .get_idata(name)
+            .get_pub_idata(name)
             .map(|data| data.value().clone())
             .map_err(From::from)
             .into_box()
@@ -54,7 +54,10 @@ impl<C: Client> Storage for SelfEncryptionStorage<C> {
     fn put(&mut self, _: Vec<u8>, data: Vec<u8>) -> Box<Future<Item = (), Error = Self::Error>> {
         trace!("Self encrypt invoked PutIData.");
         let data = PubImmutableData::new(data);
-        self.client.put_idata(data).map_err(From::from).into_box()
+        self.client
+            .put_pub_idata(data)
+            .map_err(From::from)
+            .into_box()
     }
 }
 

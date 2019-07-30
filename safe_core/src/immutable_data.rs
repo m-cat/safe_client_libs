@@ -93,7 +93,7 @@ pub fn get_value(
 ) -> Box<CoreFuture<Vec<u8>>> {
     let client2 = client.clone();
     client
-        .get_idata(*name)
+        .get_pub_idata(*name)
         .and_then(move |data| extract_value(&client2, &data, decryption_key))
         .into_box()
 }

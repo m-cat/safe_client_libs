@@ -113,9 +113,7 @@ mod mock_routing {
                         Some(SndResponse::Mutation(Err(Error::InsufficientBalance)))
                     }
                     // Pass-through
-                    _ => {
-                        None
-                    }
+                    _ => None,
                 }
             });
             routing

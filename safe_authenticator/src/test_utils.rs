@@ -37,7 +37,7 @@ use safe_core::utils::test_utils::{
 #[cfg(feature = "mock-network")]
 use safe_core::MockRouting;
 use safe_core::{utils, MDataInfo, NetworkEvent};
-use safe_nd::{Coins, PublicKey, MDataAddress};
+use safe_nd::{Coins, MDataAddress, PublicKey};
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;
